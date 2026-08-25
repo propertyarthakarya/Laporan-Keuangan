@@ -8,18 +8,7 @@ import { ROLE_LABELS, ROLE_BADGE_COLORS, type Role } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import {
-  Wallet,
-  LayoutDashboard,
-  ArrowLeftRight,
-  Tags,
-  FileBarChart,
-  Users,
-  LogOut,
-  Menu,
-  Loader2,
-  ShieldCheck,
-} from 'lucide-react';
+import { Wallet, LayoutDashboard, ArrowLeftRight, Tags, ChartBar as FileBarChart, Users, LogOut, Menu, Loader as Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface NavItem {
@@ -52,7 +41,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (loading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <Loader2 className="h-8 w-8 animate-spin text-foreground" />
       </div>
     );
   }
@@ -72,15 +61,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const SidebarContent = () => (
     <div className="flex h-full flex-col">
-      {/* Logo */}
       <div className="flex h-16 items-center gap-2.5 border-b px-6">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-md shadow-primary/30">
-          <Wallet className="h-5 w-5 text-primary-foreground" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground">
+          <Wallet className="h-4.5 w-4.5 text-background" />
         </div>
         <span className="text-lg font-bold tracking-tight">FinTrack</span>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 space-y-1 overflow-y-auto p-4 scrollbar-thin">
         <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Menu</p>
         {navItems.map((item) => {
@@ -92,24 +79,23 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               href={item.href}
               onClick={() => setMobileOpen(false)}
               className={cn(
-                'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
+                'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                 active
-                  ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
+                  ? 'bg-foreground text-background'
                   : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
               )}
             >
-              <Icon className={cn('h-4.5 w-4.5 transition-transform group-hover:scale-110', active ? 'text-primary-foreground' : '')} />
+              <Icon className="h-4 w-4" />
               {item.label}
             </Link>
           );
         })}
       </nav>
 
-      {/* User info */}
       <div className="border-t p-4">
-        <div className="flex items-center gap-3 rounded-lg bg-secondary/50 px-3 py-2.5">
+        <div className="flex items-center gap-3 rounded-lg bg-secondary px-3 py-2.5">
           <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-primary/15 text-primary text-xs font-semibold">
+            <AvatarFallback className="bg-foreground/10 text-foreground text-xs font-semibold">
               {initials}
             </AvatarFallback>
           </Avatar>
@@ -128,7 +114,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Button
           variant="ghost"
           onClick={handleLogout}
-          className="mt-2 w-full justify-start gap-2 text-muted-foreground hover:text-destructive"
+          className="mt-2 w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
         >
           <LogOut className="h-4 w-4" />
           Sign out
@@ -139,15 +125,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-background">
-      {/* Desktop sidebar */}
       <aside className="hidden w-64 flex-shrink-0 border-r bg-card lg:flex lg:flex-col">
         <SidebarContent />
       </aside>
 
-      {/* Mobile sidebar */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <div className="flex flex-1 flex-col min-w-0">
-          {/* Mobile header */}
           <header className="flex h-16 items-center justify-between border-b bg-card px-4 lg:hidden">
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
@@ -155,11 +138,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Button>
             </SheetTrigger>
             <div className="flex items-center gap-2">
-              <Wallet className="h-5 w-5 text-primary" />
+              <Wallet className="h-5 w-5" />
               <span className="font-bold">FinTrack</span>
             </div>
             <Avatar className="h-8 w-8">
-              <AvatarFallback className="bg-primary/15 text-primary text-xs font-semibold">
+              <AvatarFallback className="bg-foreground/10 text-foreground text-xs font-semibold">
                 {initials}
               </AvatarFallback>
             </Avatar>
@@ -198,7 +181,6 @@ export function PageHeader({
 export function RoleBadge({ role }: { role: Role }) {
   return (
     <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold', ROLE_BADGE_COLORS[role])}>
-      <ShieldCheck className="h-3 w-3" />
       {ROLE_LABELS[role]}
     </span>
   );

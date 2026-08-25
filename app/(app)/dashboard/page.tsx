@@ -70,8 +70,6 @@ export default function DashboardPage() {
     loadCharts(range);
   }, [range, loadCharts]);
 
-  // Poll for fresh data every 10 seconds to simulate real-time updates
-  // (in production, this would use websockets or SSE from the Express server)
   useEffect(() => {
     const interval = setInterval(() => {
       loadSummary();
@@ -90,36 +88,24 @@ export default function DashboardPage() {
       label: 'Total Income',
       value: summary?.totalIncome ?? 0,
       icon: TrendingUp,
-      color: 'text-success',
-      bg: 'bg-success/10',
-      border: 'border-success/20',
       trend: 'up' as const,
     },
     {
       label: 'Total Expenses',
       value: summary?.totalExpenses ?? 0,
       icon: TrendingDown,
-      color: 'text-destructive',
-      bg: 'bg-destructive/10',
-      border: 'border-destructive/20',
       trend: 'down' as const,
     },
     {
       label: 'Cash Balance',
       value: summary?.cashBalance ?? 0,
       icon: Wallet,
-      color: 'text-primary',
-      bg: 'bg-primary/10',
-      border: 'border-primary/20',
       trend: null,
     },
     {
       label: 'Profit / Loss',
       value: summary?.profitLoss ?? 0,
       icon: DollarSign,
-      color: (summary?.profitLoss ?? 0) >= 0 ? 'text-success' : 'text-destructive',
-      bg: (summary?.profitLoss ?? 0) >= 0 ? 'bg-success/10' : 'bg-destructive/10',
-      border: (summary?.profitLoss ?? 0) >= 0 ? 'border-success/20' : 'border-destructive/20',
       trend: (summary?.profitLoss ?? 0) >= 0 ? ('up' as const) : ('down' as const),
     },
   ];
@@ -140,7 +126,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {loading
           ? Array.from({ length: 4 }).map((_, i) => (
-              <Card key={i} className="overflow-hidden">
+              <Card key={i}>
                 <CardContent className="p-5">
                   <Skeleton className="h-4 w-24" />
                   <Skeleton className="mt-3 h-8 w-32" />
@@ -151,18 +137,14 @@ export default function DashboardPage() {
           : cards.map((card, i) => {
               const Icon = card.icon;
               return (
-                <Card
-                  key={i}
-                  className={cn('overflow-hidden transition-all hover:shadow-md', card.border)}
-                  style={{ animationDelay: `${i * 50}ms` }}
-                >
+                <Card key={i} className="animate-fade-in" style={{ animationDelay: `${i * 50}ms` }}>
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between">
-                      <div className={cn('flex h-11 w-11 items-center justify-center rounded-xl', card.bg)}>
-                        <Icon className={cn('h-5 w-5', card.color)} />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary">
+                        <Icon className="h-5 w-5 text-foreground" />
                       </div>
                       {card.trend && (
-                        <div className={cn('flex items-center gap-1 text-xs font-medium', card.color)}>
+                        <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
                           {card.trend === 'up' ? (
                             <ArrowUpRight className="h-3.5 w-3.5" />
                           ) : (
@@ -172,7 +154,7 @@ export default function DashboardPage() {
                       )}
                     </div>
                     <p className="mt-4 text-sm font-medium text-muted-foreground">{card.label}</p>
-                    <p className={cn('mt-1 text-2xl font-bold tracking-tight', card.color)}>
+                    <p className="mt-1 text-2xl font-bold tracking-tight">
                       {formatCurrency(card.value)}
                     </p>
                   </CardContent>
@@ -216,12 +198,12 @@ export default function DashboardPage() {
               <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0} />
+                    <stop offset="5%" stopColor="hsl(var(--foreground))" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="hsl(var(--foreground))" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0} />
+                    <stop offset="5%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="hsl(var(--muted-foreground))" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
@@ -254,7 +236,7 @@ export default function DashboardPage() {
                   type="monotone"
                   dataKey="income"
                   name="Income"
-                  stroke="hsl(var(--success))"
+                  stroke="hsl(var(--foreground))"
                   strokeWidth={2}
                   fill="url(#incomeGrad)"
                 />
@@ -262,7 +244,7 @@ export default function DashboardPage() {
                   type="monotone"
                   dataKey="expense"
                   name="Expenses"
-                  stroke="hsl(var(--destructive))"
+                  stroke="hsl(var(--muted-foreground))"
                   strokeWidth={2}
                   fill="url(#expenseGrad)"
                 />

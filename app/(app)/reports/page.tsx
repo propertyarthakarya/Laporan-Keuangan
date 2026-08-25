@@ -8,19 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/format';
 import type { ProfitLossReport } from '@/lib/types';
-import {
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  FileSpreadsheet,
-  FileText,
-  Loader2,
-  Calendar,
-  PieChart,
-} from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, FileSpreadsheet, FileText, Loader as Loader2, Calendar, ChartPie as PieChart } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -64,7 +54,6 @@ export default function ReportsPage() {
     setExporting(true);
     try {
       if (format === 'excel') {
-        // Generate CSV client-side
         const rows: string[][] = [];
         rows.push(['Profit & Loss Report']);
         rows.push(['Period', `${startDate || 'All time'} to ${endDate || 'present'}`]);
@@ -94,7 +83,6 @@ export default function ReportsPage() {
         a.click();
         URL.revokeObjectURL(url);
       } else {
-        // Generate a print-friendly HTML page for PDF
         const win = window.open('', '_blank');
         if (!win) return;
 
@@ -125,9 +113,9 @@ export default function ReportsPage() {
 <h1>Profit &amp; Loss Report</h1>
 <div class="meta">Generated on ${new Date().toLocaleString()} &middot; Period: ${startDate || 'All time'} to ${endDate || 'present'}</div>
 <div class="summary">
-  <div><div class="label">Total Income</div><div class="value" style="color:#15803d">${formatCurrency(report?.totalIncome ?? 0)}</div></div>
-  <div><div class="label">Total Expenses</div><div class="value" style="color:#b91c1c">${formatCurrency(report?.totalExpenses ?? 0)}</div></div>
-  <div><div class="label">Net Profit</div><div class="value" style="color:${(report?.netProfit ?? 0) >= 0 ? '#15803d' : '#b91c1c'}">${formatCurrency(report?.netProfit ?? 0)}</div></div>
+  <div><div class="label">Total Income</div><div class="value">${formatCurrency(report?.totalIncome ?? 0)}</div></div>
+  <div><div class="label">Total Expenses</div><div class="value">${formatCurrency(report?.totalExpenses ?? 0)}</div></div>
+  <div><div class="label">Net Profit</div><div class="value">${formatCurrency(report?.netProfit ?? 0)}</div></div>
 </div>
 <div class="section">
   <h2>Income Breakdown</h2>
@@ -150,9 +138,9 @@ export default function ReportsPage() {
 
   const summaryCards = report
     ? [
-        { label: 'Total Income', value: report.totalIncome, icon: TrendingUp, color: 'text-success', bg: 'bg-success/10' },
-        { label: 'Total Expenses', value: report.totalExpenses, icon: TrendingDown, color: 'text-destructive', bg: 'bg-destructive/10' },
-        { label: 'Net Profit', value: report.netProfit, icon: DollarSign, color: report.netProfit >= 0 ? 'text-success' : 'text-destructive', bg: report.netProfit >= 0 ? 'bg-success/10' : 'bg-destructive/10' },
+        { label: 'Total Income', value: report.totalIncome, icon: TrendingUp },
+        { label: 'Total Expenses', value: report.totalExpenses, icon: TrendingDown },
+        { label: 'Net Profit', value: report.netProfit, icon: DollarSign },
       ]
     : [];
 
@@ -163,7 +151,8 @@ export default function ReportsPage() {
       ].sort((a, b) => b.amount - a.amount)
     : [];
 
-  const barColors = chartData.map((d) => (d.type === 'Income' ? 'hsl(var(--success))' : 'hsl(var(--destructive))'));
+  // Monochrome: income = darker, expense = lighter
+  const barColors = chartData.map((d) => (d.type === 'Income' ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))'));
 
   return (
     <div className="p-6 lg:p-8 animate-fade-in">
@@ -219,15 +208,15 @@ export default function ReportsPage() {
             {summaryCards.map((card, i) => {
               const Icon = card.icon;
               return (
-                <Card key={i} className="overflow-hidden animate-fade-in" style={{ animationDelay: `${i * 50}ms` }}>
+                <Card key={i} className="animate-fade-in" style={{ animationDelay: `${i * 50}ms` }}>
                   <CardContent className="p-5">
                     <div className="flex items-center gap-3">
-                      <div className={cn('flex h-11 w-11 items-center justify-center rounded-xl', card.bg)}>
-                        <Icon className={cn('h-5 w-5', card.color)} />
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-secondary">
+                        <Icon className="h-5 w-5 text-foreground" />
                       </div>
                       <div>
                         <p className="text-sm font-medium text-muted-foreground">{card.label}</p>
-                        <p className={cn('text-xl font-bold', card.color)}>{formatCurrency(card.value)}</p>
+                        <p className="text-xl font-bold">{formatCurrency(card.value)}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -242,7 +231,7 @@ export default function ReportsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <TrendingUp className="h-4 w-4 text-success" />
+                  <TrendingUp className="h-4 w-4" />
                   Income Breakdown
                 </CardTitle>
                 <CardDescription>Revenue by category</CardDescription>
@@ -258,12 +247,12 @@ export default function ReportsPage() {
                         <div key={c.categoryId}>
                           <div className="mb-1.5 flex items-center justify-between">
                             <span className="text-sm font-medium">{c.categoryName}</span>
-                            <span className="text-sm font-semibold text-success">{formatCurrency(c.total)}</span>
+                            <span className="text-sm font-semibold">{formatCurrency(c.total)}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
                               <div
-                                className="h-full rounded-full bg-success transition-all duration-500"
+                                className="h-full rounded-full bg-foreground transition-all duration-500"
                                 style={{ width: `${pct}%` }}
                               />
                             </div>
@@ -275,7 +264,7 @@ export default function ReportsPage() {
                     })}
                     <div className="mt-4 flex items-center justify-between border-t pt-3">
                       <span className="font-semibold">Total Income</span>
-                      <span className="font-bold text-success">{formatCurrency(report.totalIncome)}</span>
+                      <span className="font-bold">{formatCurrency(report.totalIncome)}</span>
                     </div>
                   </div>
                 )}
@@ -286,7 +275,7 @@ export default function ReportsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <TrendingDown className="h-4 w-4 text-destructive" />
+                  <TrendingDown className="h-4 w-4" />
                   Expense Breakdown
                 </CardTitle>
                 <CardDescription>Costs by category</CardDescription>
@@ -302,12 +291,12 @@ export default function ReportsPage() {
                         <div key={c.categoryId}>
                           <div className="mb-1.5 flex items-center justify-between">
                             <span className="text-sm font-medium">{c.categoryName}</span>
-                            <span className="text-sm font-semibold text-destructive">{formatCurrency(c.total)}</span>
+                            <span className="text-sm font-semibold">{formatCurrency(c.total)}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
                               <div
-                                className="h-full rounded-full bg-destructive transition-all duration-500"
+                                className="h-full rounded-full bg-muted-foreground transition-all duration-500"
                                 style={{ width: `${pct}%` }}
                               />
                             </div>
@@ -319,7 +308,7 @@ export default function ReportsPage() {
                     })}
                     <div className="mt-4 flex items-center justify-between border-t pt-3">
                       <span className="font-semibold">Total Expenses</span>
-                      <span className="font-bold text-destructive">{formatCurrency(report.totalExpenses)}</span>
+                      <span className="font-bold">{formatCurrency(report.totalExpenses)}</span>
                     </div>
                   </div>
                 )}
@@ -332,7 +321,7 @@ export default function ReportsPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <PieChart className="h-4 w-4 text-primary" />
+                  <PieChart className="h-4 w-4" />
                   Category Comparison
                 </CardTitle>
                 <CardDescription>Amount by category (income vs expense)</CardDescription>

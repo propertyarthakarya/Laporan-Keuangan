@@ -14,15 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Category, TransactionType } from '@/lib/types';
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  Tags,
-  ArrowUpCircle,
-  ArrowDownCircle,
-  Loader2,
-} from 'lucide-react';
+import { Plus, Pencil, Trash2, Tags, CircleArrowUp as ArrowUpCircle, CircleArrowDown as ArrowDownCircle, Loader as Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function CategoriesPage() {
@@ -121,18 +113,18 @@ export default function CategoriesPage() {
   const expenseCats = categories.filter((c) => c.type === 'EXPENSE');
 
   const CategoryCard = ({ cat }: { cat: Category }) => (
-    <Card className="overflow-hidden transition-all hover:shadow-md animate-fade-in">
+    <Card className="animate-fade-in">
       <CardContent className="flex items-center gap-3 p-4">
         <div
           className={cn(
             'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl',
-            cat.type === 'INCOME' ? 'bg-success/10' : 'bg-destructive/10',
+            cat.type === 'INCOME' ? 'bg-secondary' : 'bg-foreground/5',
           )}
         >
           {cat.type === 'INCOME' ? (
-            <ArrowUpCircle className="h-5 w-5 text-success" />
+            <ArrowUpCircle className="h-5 w-5 text-foreground" />
           ) : (
-            <ArrowDownCircle className="h-5 w-5 text-destructive" />
+            <ArrowDownCircle className="h-5 w-5 text-muted-foreground" />
           )}
         </div>
         <div className="min-w-0 flex-1">
@@ -140,8 +132,8 @@ export default function CategoriesPage() {
           <Badge
             variant="outline"
             className={cn(
-              'mt-0.5 text-[10px]',
-              cat.type === 'INCOME' ? 'border-success/30 text-success' : 'border-destructive/30 text-destructive',
+              'mt-0.5 text-[10px] font-bold',
+              cat.type === 'INCOME' ? 'border-foreground text-foreground' : 'border-muted-foreground text-muted-foreground',
             )}
           >
             {cat.type}
@@ -154,7 +146,7 @@ export default function CategoriesPage() {
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
             onClick={() => setDeleteTarget(cat)}
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -174,7 +166,7 @@ export default function CategoriesPage() {
       </PageHeader>
 
       {error && (
-        <div className="mb-4 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="mb-4 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-foreground">
           {error}
         </div>
       )}
@@ -189,7 +181,7 @@ export default function CategoriesPage() {
         <div className="space-y-8">
           <div>
             <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-              <ArrowUpCircle className="h-4 w-4 text-success" />
+              <ArrowUpCircle className="h-4 w-4" />
               Income Categories
               <span className="ml-1 rounded-full bg-secondary px-2 py-0.5 text-xs">{incomeCats.length}</span>
             </h2>
@@ -210,7 +202,7 @@ export default function CategoriesPage() {
 
           <div>
             <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-              <ArrowDownCircle className="h-4 w-4 text-destructive" />
+              <ArrowDownCircle className="h-4 w-4" />
               Expense Categories
               <span className="ml-1 rounded-full bg-secondary px-2 py-0.5 text-xs">{expenseCats.length}</span>
             </h2>
@@ -242,7 +234,7 @@ export default function CategoriesPage() {
           </DialogHeader>
 
           {formError && (
-            <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <div className="rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground">
               {formError}
             </div>
           )}
@@ -294,7 +286,6 @@ export default function CategoriesPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Delete

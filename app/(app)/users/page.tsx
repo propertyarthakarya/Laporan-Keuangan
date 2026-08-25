@@ -11,7 +11,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -150,7 +149,7 @@ export default function UsersPage() {
       </PageHeader>
 
       {error && (
-        <div className="mb-4 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="mb-4 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-foreground">
           {error}
         </div>
       )}
@@ -187,13 +186,13 @@ export default function UsersPage() {
               {users.map((u, i) => (
                 <Card
                   key={u.id}
-                  className="overflow-hidden transition-all hover:shadow-md animate-fade-in"
+                  className="animate-fade-in"
                   style={{ animationDelay: `${i * 50}ms` }}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10 flex-shrink-0">
-                        <AvatarFallback className="bg-primary/15 text-primary text-xs font-semibold">
+                        <AvatarFallback className="bg-foreground/10 text-foreground text-xs font-semibold">
                           {getInitials(u.name)}
                         </AvatarFallback>
                       </Avatar>
@@ -221,7 +220,7 @@ export default function UsersPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
                           onClick={() => setDeleteTarget(u)}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -260,7 +259,7 @@ export default function UsersPage() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <Activity className="h-4 w-4 text-primary" />
+                  <Activity className="h-4 w-4" />
                   Recent Activity
                 </CardTitle>
                 <CardDescription>Latest transactions entered by team members</CardDescription>
@@ -274,13 +273,13 @@ export default function UsersPage() {
                     <div
                       className={cn(
                         'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg',
-                        entry.transactionType === 'INCOME' ? 'bg-success/10' : 'bg-destructive/10',
+                        entry.transactionType === 'INCOME' ? 'bg-secondary' : 'bg-foreground/5',
                       )}
                     >
                       {entry.transactionType === 'INCOME' ? (
-                        <ArrowUpCircle className="h-4.5 w-4.5 text-success" />
+                        <ArrowUpCircle className="h-4 w-4 text-foreground" />
                       ) : (
-                        <ArrowDownCircle className="h-4.5 w-4.5 text-destructive" />
+                        <ArrowDownCircle className="h-4 w-4 text-muted-foreground" />
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -298,7 +297,7 @@ export default function UsersPage() {
                       <p
                         className={cn(
                           'text-sm font-bold',
-                          entry.transactionType === 'INCOME' ? 'text-success' : 'text-destructive',
+                          entry.transactionType === 'INCOME' ? 'text-foreground' : 'text-muted-foreground',
                         )}
                       >
                         {entry.transactionType === 'INCOME' ? '+' : '-'}
@@ -323,7 +322,7 @@ export default function UsersPage() {
           </DialogHeader>
 
           {formError && (
-            <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <div className="rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground">
               {formError}
             </div>
           )}
@@ -396,7 +395,6 @@ export default function UsersPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Delete

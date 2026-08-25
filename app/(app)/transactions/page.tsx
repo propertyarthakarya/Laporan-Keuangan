@@ -15,17 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { formatCurrency, formatDate, toInputDate } from '@/lib/format';
 import type { Transaction, Category, TransactionType } from '@/lib/types';
-import {
-  Plus,
-  Pencil,
-  Trash2,
-  ArrowUpCircle,
-  ArrowDownCircle,
-  Filter,
-  X,
-  Loader2,
-  Search,
-} from 'lucide-react';
+import { Plus, Pencil, Trash2, CircleArrowUp as ArrowUpCircle, CircleArrowDown as ArrowDownCircle, Filter, X, Loader as Loader2, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function TransactionsPage() {
@@ -168,7 +158,6 @@ export default function TransactionsPage() {
 
   const hasFilters = filterCategory !== 'all' || filterType !== 'all' || filterStartDate || filterEndDate;
 
-  // Client-side search on top of server-side filters
   const filteredTx = searchQuery
     ? transactions.filter(
         (t) =>
@@ -247,7 +236,7 @@ export default function TransactionsPage() {
 
       {/* Error */}
       {error && (
-        <div className="mb-4 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="mb-4 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-foreground">
           {error}
         </div>
       )}
@@ -274,19 +263,19 @@ export default function TransactionsPage() {
           {filteredTx.map((tx) => (
             <Card
               key={tx.id}
-              className="overflow-hidden transition-all hover:shadow-md animate-fade-in"
+              className="animate-fade-in"
             >
               <CardContent className="flex items-center gap-4 p-4">
                 <div
                   className={cn(
                     'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl',
-                    tx.transactionType === 'INCOME' ? 'bg-success/10' : 'bg-destructive/10',
+                    tx.transactionType === 'INCOME' ? 'bg-secondary' : 'bg-foreground/5',
                   )}
                 >
                   {tx.transactionType === 'INCOME' ? (
-                    <ArrowUpCircle className="h-5 w-5 text-success" />
+                    <ArrowUpCircle className="h-5 w-5 text-foreground" />
                   ) : (
-                    <ArrowDownCircle className="h-5 w-5 text-destructive" />
+                    <ArrowDownCircle className="h-5 w-5 text-muted-foreground" />
                   )}
                 </div>
 
@@ -296,10 +285,10 @@ export default function TransactionsPage() {
                     <Badge
                       variant="outline"
                       className={cn(
-                        'flex-shrink-0 text-[10px]',
+                        'flex-shrink-0 text-[10px] font-bold',
                         tx.transactionType === 'INCOME'
-                          ? 'border-success/30 text-success'
-                          : 'border-destructive/30 text-destructive',
+                          ? 'border-foreground text-foreground'
+                          : 'border-muted-foreground text-muted-foreground',
                       )}
                     >
                       {tx.transactionType}
@@ -314,7 +303,7 @@ export default function TransactionsPage() {
                   <p
                     className={cn(
                       'text-sm font-bold',
-                      tx.transactionType === 'INCOME' ? 'text-success' : 'text-destructive',
+                      tx.transactionType === 'INCOME' ? 'text-foreground' : 'text-muted-foreground',
                     )}
                   >
                     {tx.transactionType === 'INCOME' ? '+' : '-'}
@@ -330,7 +319,7 @@ export default function TransactionsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
                       onClick={() => setDeleteTarget(tx)}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -354,7 +343,7 @@ export default function TransactionsPage() {
           </DialogHeader>
 
           {formError && (
-            <div className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <div className="rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground">
               {formError}
             </div>
           )}
@@ -370,7 +359,7 @@ export default function TransactionsPage() {
                     setFormType('INCOME');
                     setFormCategory('');
                   }}
-                  className={cn('flex-1', formType === 'INCOME' && 'bg-success hover:bg-success/90')}
+                  className="flex-1"
                   size="sm"
                 >
                   <ArrowUpCircle className="mr-2 h-4 w-4" />
@@ -383,7 +372,7 @@ export default function TransactionsPage() {
                     setFormType('EXPENSE');
                     setFormCategory('');
                   }}
-                  className={cn('flex-1', formType === 'EXPENSE' && 'bg-destructive hover:bg-destructive/90')}
+                  className="flex-1"
                   size="sm"
                 >
                   <ArrowDownCircle className="mr-2 h-4 w-4" />
@@ -460,7 +449,6 @@ export default function TransactionsPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Delete
