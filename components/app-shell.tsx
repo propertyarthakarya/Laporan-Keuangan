@@ -146,33 +146,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Mobile sidebar */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <div className="flex flex-1 flex-col min-w-0">
+          {/* Mobile header */}
+          <header className="flex h-16 items-center justify-between border-b bg-card px-4 lg:hidden">
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <div className="flex items-center gap-2">
+              <Wallet className="h-5 w-5 text-primary" />
+              <span className="font-bold">FinTrack</span>
+            </div>
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="bg-primary/15 text-primary text-xs font-semibold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+          </header>
+
+          <main className="flex-1 overflow-y-auto scrollbar-thin">{children}</main>
+        </div>
         <SheetContent side="left" className="w-72 p-0">
           <SidebarContent />
         </SheetContent>
       </Sheet>
-
-      {/* Main content */}
-      <div className="flex flex-1 flex-col min-w-0">
-        {/* Mobile header */}
-        <header className="flex h-16 items-center justify-between border-b bg-card px-4 lg:hidden">
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" onClick={() => setMobileOpen(true)}>
-              <Menu className="h-5 w-5" />
-            </Button>
-          </SheetTrigger>
-          <div className="flex items-center gap-2">
-            <Wallet className="h-5 w-5 text-primary" />
-            <span className="font-bold">FinTrack</span>
-          </div>
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-primary/15 text-primary text-xs font-semibold">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-        </header>
-
-        <main className="flex-1 overflow-y-auto scrollbar-thin">{children}</main>
-      </div>
     </div>
   );
 }
