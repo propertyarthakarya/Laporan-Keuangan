@@ -3,8 +3,6 @@
     { "source": "/api/(.*)", "destination": "/api" }
   ],
   "functions": {
-    "api/index.js": {
-      "includeFiles": "server/dist/**"
-    }
+    "api/index.js": {}
   }
 }

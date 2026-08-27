@@ -1,5 +1,5 @@
 const serverless = require('serverless-http');
-const { default: app } = require('../server/dist/index');
+const { default: app } = require('../dist/index');
 
 module.exports.config = {
   api: {
