@@ -2,6 +2,11 @@
   "name": "financial-reporting-api",
   "version": "1.0.0",
   "private": true,
+  "allowScripts": {
+    "prisma": true,
+    "@prisma/client": true,
+    "@prisma/engines": true
+  },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "prisma generate && tsc",
