@@ -1,5 +1,5 @@
 import serverless from 'serverless-http';
-import app from '../server/src/index.js';
+import app from '../server/dist/index';
 
 export const config = {
   api: {
