@@ -35,17 +35,53 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+// Batas maksimal nunggu cek sesi awal. Kalau backend hang / tidak respon
+// sama sekali (bukan error/reject biasa), loading tetap dipaksa selesai
+// setelah durasi ini supaya UI tidak stuck selamanya di spinner.
+const AUTH_CHECK_TIMEOUT_MS = 8000;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
+    let finished = false;
+
+    // Timeout guard: kalau apiClient.me() tidak pernah selesai (hang),
+    // paksa loading jadi false setelah AUTH_CHECK_TIMEOUT_MS supaya
+    // halaman tidak stuck di spinner selamanya. User dianggap belum
+    // login (aman, akan diarahkan ke /login).
+    const timeoutId = setTimeout(() => {
+      if (!finished) {
+        finished = true;
+        setUser(null);
+        setLoading(false);
+      }
+    }, AUTH_CHECK_TIMEOUT_MS);
+
     // Cek sesi aktif lewat cookie httpOnly (bukan localStorage)
     apiClient
       .me()
-      .then((u) => setUser(u))
-      .finally(() => setLoading(false));
+      .then((u) => {
+        if (finished) return; // sudah keburu timeout, abaikan hasil telat
+        finished = true;
+        clearTimeout(timeoutId);
+        setUser(u);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timeoutId);
+        setUser(null);
+        setLoading(false);
+      });
+
+    return () => {
+      finished = true;
+      clearTimeout(timeoutId);
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<User> => {
