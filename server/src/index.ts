@@ -8,6 +8,7 @@ import transactionRoutes from './routes/transactions';
 import dashboardRoutes from './routes/dashboard';
 import reportRoutes from './routes/reports';
 import userRoutes from './routes/users';
+import setupAdminRoutes from './routes/setup-admin';
 import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
@@ -44,6 +45,7 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/setup-admin', setupAdminRoutes);
 
 // 404
 app.use((_req, res) => {
@@ -53,8 +55,13 @@ app.use((_req, res) => {
 // Error handler (must be last)
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`Financial Reporting API running on http://localhost:${PORT}`);
-});
+// Cuma nyalain server manual kalau di lokal (development).
+// Di Vercel (production), app ini dipanggil sebagai serverless function,
+// jadi tidak butuh app.listen().
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Financial Reporting API running on http://localhost:${PORT}`);
+  });
+}
 
 export default app;

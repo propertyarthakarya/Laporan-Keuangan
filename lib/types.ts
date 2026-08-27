@@ -80,6 +80,26 @@ export interface ActivityLogEntry {
   enteredAt: string;
 }
 
+export type LoginStatus = 'SUCCESS' | 'FAILED';
+
+export interface LoginActivityEntry {
+  id: string;
+  emailAttempted: string;
+  userId: string | null;
+  userName: string | null;
+  status: LoginStatus;
+  ipAddress: string;
+  userAgent: string | null;
+  browser: string | null;
+  os: string | null;
+  city: string | null;
+  country: string | null;
+  isNewDevice: boolean;
+  isNewLocation: boolean;
+  failedAttemptsBeforeSuccess: number;
+  createdAt: string;
+}
+
 export const ROLE_LABELS: Record<Role, string> = {
   ADMIN: 'Administrator',
   STAFF: 'Finance Staff',

@@ -125,4 +125,43 @@ router.get('/activity-log', requireRoles('ADMIN'), async (req: AuthenticatedRequ
   }
 });
 
+// GET /api/users/login-activity (Admin only)
+// Log aktivitas login (sukses & gagal) beserta flag anomali sederhana:
+// perangkat baru, lokasi (IP) baru, dan jumlah percobaan gagal sebelum
+// akhirnya berhasil. Lihat server/src/lib/loginActivity.ts untuk logika
+// pencatatan & deteksinya.
+router.get('/login-activity', requireRoles('ADMIN'), async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+
+    const entries = await prisma.loginActivity.findMany({
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    const log = entries.map((e) => ({
+      id: e.id,
+      emailAttempted: e.emailAttempted,
+      userId: e.userId,
+      userName: e.user?.name ?? null,
+      status: e.status,
+      ipAddress: e.ipAddress,
+      userAgent: e.userAgent,
+      browser: e.browser,
+      os: e.os,
+      isNewDevice: e.isNewDevice,
+      isNewLocation: e.isNewLocation,
+      failedAttemptsBeforeSuccess: e.failedAttemptsBeforeSuccess,
+      createdAt: e.createdAt,
+    }));
+
+    return res.json({ loginActivity: log });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

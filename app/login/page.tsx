@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardDescription, CardTitle } from '@/components/ui/card';
 import { Wallet, Eye, EyeOff, CircleAlert as AlertCircle, Loader as Loader2 } from 'lucide-react';
+import Image from 'next/image';
+import loadingGif from '@/app/img/Gift.gif';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -33,7 +35,6 @@ export default function LoginPage() {
       router.push('/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
-    } finally {
       setSubmitting(false);
     }
   }
@@ -48,6 +49,12 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
+      {submitting && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/60 backdrop-blur-sm">
+          <Image src={loadingGif} alt="Loading..." width={80} height={80} unoptimized />
+        </div>
+      )}
+
       <div className="w-full max-w-md px-4 animate-fade-in">
         <div className="mb-8 text-center">
           <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-xl bg-foreground">

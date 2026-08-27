@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import type { User, Role, TransactionType, Category, Transaction, DashboardSummary, ChartDataPoint, ProfitLossReport, ActivityLogEntry } from './types';
-import { mockDb } from './mock-db';
+import type { User, Role, TransactionType, Category, Transaction, DashboardSummary, ChartDataPoint, ProfitLossReport, ActivityLogEntry, LoginActivityEntry } from './types';
+import { apiClient } from './api-client';
 
 interface AuthContextValue {
   user: User | null;
@@ -11,7 +11,6 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<User>;
   logout: () => void;
 
-  // Data access
   getCategories: () => Promise<Category[]>;
   createCategory: (data: { categoryName: string; type: TransactionType }) => Promise<Category>;
   updateCategory: (id: string, data: { categoryName: string; type: TransactionType }) => Promise<Category>;
@@ -31,11 +30,10 @@ interface AuthContextValue {
   createUser: (data: { name: string; email: string; password: string; role: Role }) => Promise<User>;
   deleteUser: (id: string) => Promise<void>;
   getActivityLog: (limit?: number) => Promise<ActivityLogEntry[]>;
+  getLoginActivity: (limit?: number) => Promise<LoginActivityEntry[]>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-const STORAGE_KEY = 'fintrack_user';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -43,28 +41,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setUser(JSON.parse(stored));
-      }
-    } catch {
-      // ignore parse errors
-    }
-    setLoading(false);
+    // Cek sesi aktif lewat cookie httpOnly (bukan localStorage)
+    apiClient
+      .me()
+      .then((u) => setUser(u))
+      .finally(() => setLoading(false));
   }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<User> => {
-    const u = await mockDb.login(email, password);
+    const u = await apiClient.login(email, password);
     setUser(u);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
     return u;
   }, []);
 
   const logout = useCallback(() => {
-    setUser(null);
-    localStorage.removeItem(STORAGE_KEY);
-    router.push('/login');
+    apiClient.logout().finally(() => {
+      setUser(null);
+      router.push('/login');
+    });
   }, [router]);
 
   const value: AuthContextValue = {
@@ -72,21 +66,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     login,
     logout,
-    getCategories: mockDb.getCategories,
-    createCategory: mockDb.createCategory,
-    updateCategory: mockDb.updateCategory,
-    deleteCategory: mockDb.deleteCategory,
-    getTransactions: mockDb.getTransactions,
-    createTransaction: (data) => mockDb.createTransaction(data, user!.id),
-    updateTransaction: mockDb.updateTransaction,
-    deleteTransaction: mockDb.deleteTransaction,
-    getDashboardSummary: mockDb.getDashboardSummary,
-    getDashboardCharts: mockDb.getDashboardCharts,
-    getProfitLoss: mockDb.getProfitLoss,
-    getUsers: mockDb.getUsers,
-    createUser: mockDb.createUser,
-    deleteUser: mockDb.deleteUser,
-    getActivityLog: mockDb.getActivityLog,
+    getCategories: apiClient.getCategories,
+    createCategory: apiClient.createCategory,
+    updateCategory: apiClient.updateCategory,
+    deleteCategory: apiClient.deleteCategory,
+    getTransactions: apiClient.getTransactions,
+    createTransaction: apiClient.createTransaction,
+    updateTransaction: apiClient.updateTransaction,
+    deleteTransaction: apiClient.deleteTransaction,
+    getDashboardSummary: apiClient.getDashboardSummary,
+    getDashboardCharts: apiClient.getDashboardCharts,
+    getProfitLoss: apiClient.getProfitLoss,
+    getUsers: apiClient.getUsers,
+    createUser: apiClient.createUser,
+    deleteUser: apiClient.deleteUser,
+    getActivityLog: apiClient.getActivityLog,
+    getLoginActivity: apiClient.getLoginActivity,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -22,14 +22,21 @@ enum TransactionType {
   EXPENSE
 }
 
+enum LoginStatus {
+  SUCCESS
+  FAILED
+}
+
+
 model User {
-  id           String         @id @default(uuid())
-  name         String
-  email        String         @unique
-  password     String
-  role         Role           @default(MANAGEMENT)
-  createdAt    DateTime       @default(now())
-  transactions Transaction[]  @relation("UserTransactions")
+  id              String          @id @default(uuid())
+  name            String
+  email           String          @unique
+  password        String
+  role            Role            @default(MANAGEMENT)
+  createdAt       DateTime        @default(now())
+  transactions    Transaction[]   @relation("UserTransactions")
+  loginActivities LoginActivity[]
 }
 
 model Category {
@@ -58,4 +65,33 @@ model Transaction {
   @@index([categoryId])
   @@index([createdById])
   @@index([transactionType])
+}
+
+model LoginActivity {
+  id             String      @id @default(uuid())
+
+  emailAttempted String
+
+  userId         String?
+  user           User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  status         LoginStatus
+
+  ipAddress      String
+  userAgent      String?
+  browser        String?
+  os             String?
+  city           String?     
+  country        String?     
+
+  isNewDevice    Boolean     @default(false)
+  isNewLocation  Boolean     @default(false)
+
+  failedAttemptsBeforeSuccess Int @default(0)
+
+  createdAt      DateTime    @default(now())
+
+  @@index([userId])
+  @@index([emailAttempted])
+  @@index([createdAt])
 }

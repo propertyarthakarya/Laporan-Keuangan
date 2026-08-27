@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
+import { useLanguage } from '@/lib/i18n/language-context';
 import { PageHeader } from '@/components/app-shell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatCurrency } from '@/lib/format';
+import { formatCurrency, formatCurrencyCompact } from '@/lib/format';
 import type { ProfitLossReport } from '@/lib/types';
 import { TrendingUp, TrendingDown, DollarSign, FileSpreadsheet, FileText, Loader as Loader2, Calendar, ChartPie as PieChart } from 'lucide-react';
 import {
@@ -22,66 +24,66 @@ import {
   Cell,
 } from 'recharts';
 import { cn } from '@/lib/utils';
+import * as XLSX from 'xlsx';
 
 export default function ReportsPage() {
   const { getProfitLoss } = useAuth();
-  const [report, setReport] = useState<ProfitLossReport | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { t } = useLanguage();
   const [exporting, setExporting] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const r = await getProfitLoss({
+  // Fetch — queryKey include startDate/endDate, jadi tiap kombinasi periode punya cache sendiri
+  const { data: report, isLoading: loading } = useQuery<ProfitLossReport>({
+    queryKey: ['profit-loss', startDate, endDate],
+    queryFn: () =>
+      getProfitLoss({
         startDate: startDate || undefined,
         endDate: endDate || undefined,
-      });
-      setReport(r);
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, [getProfitLoss, startDate, endDate]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+      }),
+  });
 
   function handleExport(format: 'pdf' | 'excel') {
     setExporting(true);
     try {
       if (format === 'excel') {
-        const rows: string[][] = [];
-        rows.push(['Profit & Loss Report']);
-        rows.push(['Period', `${startDate || 'All time'} to ${endDate || 'present'}`]);
-        rows.push(['Generated', new Date().toLocaleString()]);
-        rows.push([]);
-        rows.push(['INCOME BREAKDOWN']);
-        rows.push(['Category', 'Amount', 'Transaction Count']);
-        report?.incomeBreakdown.forEach((c) => rows.push([c.categoryName, c.total.toFixed(2), String(c.count)]));
-        rows.push(['Total Income', (report?.totalIncome ?? 0).toFixed(2), '']);
-        rows.push([]);
-        rows.push(['EXPENSE BREAKDOWN']);
-        rows.push(['Category', 'Amount', 'Transaction Count']);
-        report?.expenseBreakdown.forEach((c) => rows.push([c.categoryName, c.total.toFixed(2), String(c.count)]));
-        rows.push(['Total Expenses', (report?.totalExpenses ?? 0).toFixed(2), '']);
-        rows.push([]);
-        rows.push(['NET PROFIT', (report?.netProfit ?? 0).toFixed(2)]);
+        const wb = XLSX.utils.book_new();
 
-        const csv = rows
-          .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-          .join('\n');
+        // Sheet 1: Summary
+        const summaryRows = [
+          [t('reports.title')],
+          [t('reports.period').replace(':', ''), `${startDate || t('reports.allTime')} ${t('reports.period').includes(':') ? '' : ''}${' to '}${endDate || t('reports.present')}`],
+          ['Generated', new Date().toLocaleString()],
+          [],
+          [t('reports.totalIncome'), report?.totalIncome ?? 0],
+          [t('reports.totalExpenses'), report?.totalExpenses ?? 0],
+          [t('reports.netProfit'), report?.netProfit ?? 0],
+        ];
+        const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
+        summarySheet['!cols'] = [{ wch: 20 }, { wch: 30 }];
+        XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
 
-        const blob = new Blob([csv], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'profit-loss-report.csv';
-        a.click();
-        URL.revokeObjectURL(url);
+        // Sheet 2: Income breakdown
+        const incomeRows = [
+          [t('reports.category'), t('reports.amount'), t('reports.transactions')],
+          ...(report?.incomeBreakdown.map((c) => [c.categoryName, c.total, c.count]) ?? []),
+          [t('reports.totalIncome'), report?.totalIncome ?? 0, ''],
+        ];
+        const incomeSheet = XLSX.utils.aoa_to_sheet(incomeRows);
+        incomeSheet['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 18 }];
+        XLSX.utils.book_append_sheet(wb, incomeSheet, 'Income Breakdown');
+
+        // Sheet 3: Expense breakdown
+        const expenseRows = [
+          [t('reports.category'), t('reports.amount'), t('reports.transactions')],
+          ...(report?.expenseBreakdown.map((c) => [c.categoryName, c.total, c.count]) ?? []),
+          [t('reports.totalExpenses'), report?.totalExpenses ?? 0, ''],
+        ];
+        const expenseSheet = XLSX.utils.aoa_to_sheet(expenseRows);
+        expenseSheet['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 18 }];
+        XLSX.utils.book_append_sheet(wb, expenseSheet, 'Expense Breakdown');
+
+        XLSX.writeFile(wb, 'profit-loss-report.xlsx');
       } else {
         const win = window.open('', '_blank');
         if (!win) return;
@@ -93,7 +95,7 @@ export default function ReportsPage() {
           .map((c) => `<tr><td>${c.categoryName}</td><td style="text-align:right">${formatCurrency(c.total)}</td><td style="text-align:center">${c.count}</td></tr>`)
           .join('') || '';
 
-        win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Profit &amp; Loss Report</title>
+        win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t('reports.title')}</title>
 <style>
   body{font-family:Arial,sans-serif;margin:40px;color:#1a1a1a}
   h1{font-size:24px;margin-bottom:4px}
@@ -110,24 +112,24 @@ export default function ReportsPage() {
   .total-row{font-weight:bold;background:#f9f9f9}
   @media print{.no-print{display:none}}
 </style></head><body>
-<h1>Profit &amp; Loss Report</h1>
-<div class="meta">Generated on ${new Date().toLocaleString()} &middot; Period: ${startDate || 'All time'} to ${endDate || 'present'}</div>
+<h1>${t('reports.title')}</h1>
+<div class="meta">${t('reports.generatedOn')} ${new Date().toLocaleString()} &middot; ${t('reports.period')} ${startDate || t('reports.allTime')} - ${endDate || t('reports.present')}</div>
 <div class="summary">
-  <div><div class="label">Total Income</div><div class="value">${formatCurrency(report?.totalIncome ?? 0)}</div></div>
-  <div><div class="label">Total Expenses</div><div class="value">${formatCurrency(report?.totalExpenses ?? 0)}</div></div>
-  <div><div class="label">Net Profit</div><div class="value">${formatCurrency(report?.netProfit ?? 0)}</div></div>
+  <div><div class="label">${t('reports.totalIncome')}</div><div class="value">${formatCurrency(report?.totalIncome ?? 0)}</div></div>
+  <div><div class="label">${t('reports.totalExpenses')}</div><div class="value">${formatCurrency(report?.totalExpenses ?? 0)}</div></div>
+  <div><div class="label">${t('reports.netProfit')}</div><div class="value">${formatCurrency(report?.netProfit ?? 0)}</div></div>
 </div>
 <div class="section">
-  <h2>Income Breakdown</h2>
-  <table><thead><tr><th>Category</th><th style="text-align:right">Amount</th><th style="text-align:center">Transactions</th></tr></thead>
-  <tbody>${incomeRows}<tr class="total-row"><td>Total Income</td><td style="text-align:right">${formatCurrency(report?.totalIncome ?? 0)}</td><td></td></tr></tbody></table>
+  <h2>${t('reports.incomeBreakdown')}</h2>
+  <table><thead><tr><th>${t('reports.category')}</th><th style="text-align:right">${t('reports.amount')}</th><th style="text-align:center">${t('reports.transactions')}</th></tr></thead>
+  <tbody>${incomeRows}<tr class="total-row"><td>${t('reports.totalIncome')}</td><td style="text-align:right">${formatCurrency(report?.totalIncome ?? 0)}</td><td></td></tr></tbody></table>
 </div>
 <div class="section">
-  <h2>Expense Breakdown</h2>
-  <table><thead><tr><th>Category</th><th style="text-align:right">Amount</th><th style="text-align:center">Transactions</th></tr></thead>
-  <tbody>${expenseRows}<tr class="total-row"><td>Total Expenses</td><td style="text-align:right">${formatCurrency(report?.totalExpenses ?? 0)}</td><td></td></tr></tbody></table>
+  <h2>${t('reports.expenseBreakdown')}</h2>
+  <table><thead><tr><th>${t('reports.category')}</th><th style="text-align:right">${t('reports.amount')}</th><th style="text-align:center">${t('reports.transactions')}</th></tr></thead>
+  <tbody>${expenseRows}<tr class="total-row"><td>${t('reports.totalExpenses')}</td><td style="text-align:right">${formatCurrency(report?.totalExpenses ?? 0)}</td><td></td></tr></tbody></table>
 </div>
-<div class="no-print" style="margin-top:24px"><button onclick="window.print()" style="padding:10px 20px;font-size:14px;cursor:pointer">Print / Save as PDF</button></div>
+<div class="no-print" style="margin-top:24px"><button onclick="window.print()" style="padding:10px 20px;font-size:14px;cursor:pointer">${t('reports.printSaveAsPdf')}</button></div>
 </body></html>`);
         win.document.close();
       }
@@ -138,9 +140,9 @@ export default function ReportsPage() {
 
   const summaryCards = report
     ? [
-        { label: 'Total Income', value: report.totalIncome, icon: TrendingUp },
-        { label: 'Total Expenses', value: report.totalExpenses, icon: TrendingDown },
-        { label: 'Net Profit', value: report.netProfit, icon: DollarSign },
+        { label: t('reports.totalIncome'), value: report.totalIncome, icon: TrendingUp, tone: 'positive' as const },
+        { label: t('reports.totalExpenses'), value: report.totalExpenses, icon: TrendingDown, tone: 'negative' as const },
+        { label: t('reports.netProfit'), value: report.netProfit, icon: DollarSign, tone: 'auto' as const },
       ]
     : [];
 
@@ -155,37 +157,41 @@ export default function ReportsPage() {
   const barColors = chartData.map((d) => (d.type === 'Income' ? 'hsl(var(--foreground))' : 'hsl(var(--muted-foreground))'));
 
   return (
-    <div className="p-6 lg:p-8 animate-fade-in">
-      <PageHeader title="Profit & Loss Report" description="Financial performance breakdown by category">
-        <Button variant="outline" size="sm" onClick={() => handleExport('pdf')} disabled={exporting || loading}>
-          {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
-          Export PDF
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => handleExport('excel')} disabled={exporting || loading}>
-          <FileSpreadsheet className="mr-2 h-4 w-4" />
-          Export Excel
-        </Button>
+    <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
+      <PageHeader title={t('reports.title')} description={t('reports.subtitle')}>
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+          <Button variant="outline" size="sm" onClick={() => handleExport('pdf')} disabled={exporting || loading}>
+            {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+            {t('reports.exportPdf')}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => handleExport('excel')} disabled={exporting || loading}>
+            <FileSpreadsheet className="mr-2 h-4 w-4" />
+            {t('reports.exportExcel')}
+          </Button>
+        </div>
       </PageHeader>
 
       {/* Period filter */}
-      <Card className="mb-6">
+      <Card className="mb-5 sm:mb-6">
         <CardContent className="p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Calendar className="h-4 w-4" />
-              Period:
+              <Calendar className="h-4 w-4 flex-shrink-0" />
+              {t('reports.period')}
             </div>
-            <div className="w-full sm:w-48">
-              <Label className="mb-1.5 block text-xs">From date</Label>
-              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-            </div>
-            <div className="w-full sm:w-48">
-              <Label className="mb-1.5 block text-xs">To date</Label>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            <div className="grid grid-cols-2 gap-3 sm:flex sm:gap-4">
+              <div className="w-full sm:w-48">
+                <Label className="mb-1.5 block text-xs">{t('reports.fromDate')}</Label>
+                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              </div>
+              <div className="w-full sm:w-48">
+                <Label className="mb-1.5 block text-xs">{t('reports.toDate')}</Label>
+                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              </div>
             </div>
             {(startDate || endDate) && (
-              <Button variant="ghost" size="sm" onClick={() => { setStartDate(''); setEndDate(''); }}>
-                Clear dates
+              <Button variant="ghost" size="sm" onClick={() => { setStartDate(''); setEndDate(''); }} className="w-full sm:w-auto">
+                {t('reports.clearDates')}
               </Button>
             )}
           </div>
@@ -193,30 +199,48 @@ export default function ReportsPage() {
       </Card>
 
       {loading ? (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28" />)}
+        <div className="space-y-5 sm:space-y-6">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 sm:h-28" />)}
           </div>
           <Skeleton className="h-80" />
         </div>
       ) : !report ? (
-        <Card><CardContent className="py-16 text-center text-sm text-muted-foreground">Failed to load report.</CardContent></Card>
+        <Card><CardContent className="py-16 text-center text-sm text-muted-foreground">{t('reports.loadFailed')}</CardContent></Card>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-5 sm:space-y-6">
           {/* Summary cards */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
             {summaryCards.map((card, i) => {
               const Icon = card.icon;
+              const isPositive = card.tone === 'positive' || (card.tone === 'auto' && card.value >= 0);
+              const isNegative = card.tone === 'negative' || (card.tone === 'auto' && card.value < 0);
               return (
                 <Card key={i} className="animate-fade-in" style={{ animationDelay: `${i * 50}ms` }}>
-                  <CardContent className="p-5">
+                  <CardContent className="p-4 sm:p-5">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-secondary">
-                        <Icon className="h-5 w-5 text-foreground" />
+                      <div
+                        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-secondary sm:h-11 sm:w-11"
+                      >
+                        <Icon
+                          className={cn(
+                            'h-5 w-5',
+                            isPositive && 'text-green-600 dark:text-green-400',
+                            isNegative && 'text-red-600 dark:text-red-400',
+                          )}
+                        />
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">{card.label}</p>
-                        <p className="text-xl font-bold">{formatCurrency(card.value)}</p>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-muted-foreground">{card.label}</p>
+                        <p
+                          className={cn(
+                            'truncate text-lg font-bold sm:text-xl',
+                            isPositive && 'text-green-600 dark:text-green-400',
+                            isNegative && 'text-red-600 dark:text-red-400',
+                          )}
+                        >
+                          {formatCurrency(card.value)}
+                        </p>
                       </div>
                     </div>
                   </CardContent>
@@ -226,28 +250,28 @@ export default function ReportsPage() {
           </div>
 
           {/* Breakdown by category */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
             {/* Income breakdown */}
             <Card>
-              <CardHeader>
+              <CardHeader className="p-4 sm:p-6">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <TrendingUp className="h-4 w-4" />
-                  Income Breakdown
+                  <TrendingUp className="h-4 w-4 flex-shrink-0 text-green-600 dark:text-green-400" />
+                  {t('reports.incomeBreakdown')}
                 </CardTitle>
-                <CardDescription>Revenue by category</CardDescription>
+                <CardDescription>{t('reports.revenueByCategory')}</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
                 {report.incomeBreakdown.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">No income in this period</p>
+                  <p className="py-8 text-center text-sm text-muted-foreground">{t('reports.noIncomeInPeriod')}</p>
                 ) : (
                   <div className="space-y-3">
                     {report.incomeBreakdown.map((c) => {
                       const pct = report.totalIncome > 0 ? (c.total / report.totalIncome) * 100 : 0;
                       return (
                         <div key={c.categoryId}>
-                          <div className="mb-1.5 flex items-center justify-between">
-                            <span className="text-sm font-medium">{c.categoryName}</span>
-                            <span className="text-sm font-semibold">{formatCurrency(c.total)}</span>
+                          <div className="mb-1.5 flex items-center justify-between gap-2">
+                            <span className="truncate text-sm font-medium">{c.categoryName}</span>
+                            <span className="flex-shrink-0 text-sm font-semibold">{formatCurrency(c.total)}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
@@ -256,14 +280,14 @@ export default function ReportsPage() {
                                 style={{ width: `${pct}%` }}
                               />
                             </div>
-                            <span className="w-10 text-right text-xs text-muted-foreground">{pct.toFixed(0)}%</span>
+                            <span className="w-9 flex-shrink-0 text-right text-xs text-muted-foreground">{pct.toFixed(0)}%</span>
                           </div>
-                          <p className="mt-1 text-xs text-muted-foreground">{c.count} transaction(s)</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{c.count} {t('reports.transactionCount')}</p>
                         </div>
                       );
                     })}
                     <div className="mt-4 flex items-center justify-between border-t pt-3">
-                      <span className="font-semibold">Total Income</span>
+                      <span className="font-semibold">{t('reports.totalIncome')}</span>
                       <span className="font-bold">{formatCurrency(report.totalIncome)}</span>
                     </div>
                   </div>
@@ -273,25 +297,25 @@ export default function ReportsPage() {
 
             {/* Expense breakdown */}
             <Card>
-              <CardHeader>
+              <CardHeader className="p-4 sm:p-6">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <TrendingDown className="h-4 w-4" />
-                  Expense Breakdown
+                  <TrendingDown className="h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400" />
+                  {t('reports.expenseBreakdown')}
                 </CardTitle>
-                <CardDescription>Costs by category</CardDescription>
+                <CardDescription>{t('reports.costsByCategory')}</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
                 {report.expenseBreakdown.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">No expenses in this period</p>
+                  <p className="py-8 text-center text-sm text-muted-foreground">{t('reports.noExpensesInPeriod')}</p>
                 ) : (
                   <div className="space-y-3">
                     {report.expenseBreakdown.map((c) => {
                       const pct = report.totalExpenses > 0 ? (c.total / report.totalExpenses) * 100 : 0;
                       return (
                         <div key={c.categoryId}>
-                          <div className="mb-1.5 flex items-center justify-between">
-                            <span className="text-sm font-medium">{c.categoryName}</span>
-                            <span className="text-sm font-semibold">{formatCurrency(c.total)}</span>
+                          <div className="mb-1.5 flex items-center justify-between gap-2">
+                            <span className="truncate text-sm font-medium">{c.categoryName}</span>
+                            <span className="flex-shrink-0 text-sm font-semibold">{formatCurrency(c.total)}</span>
                           </div>
                           <div className="flex items-center gap-2">
                             <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
@@ -300,14 +324,14 @@ export default function ReportsPage() {
                                 style={{ width: `${pct}%` }}
                               />
                             </div>
-                            <span className="w-10 text-right text-xs text-muted-foreground">{pct.toFixed(0)}%</span>
+                            <span className="w-9 flex-shrink-0 text-right text-xs text-muted-foreground">{pct.toFixed(0)}%</span>
                           </div>
-                          <p className="mt-1 text-xs text-muted-foreground">{c.count} transaction(s)</p>
+                          <p className="mt-1 text-xs text-muted-foreground">{c.count} {t('reports.transactionCount')}</p>
                         </div>
                       );
                     })}
                     <div className="mt-4 flex items-center justify-between border-t pt-3">
-                      <span className="font-semibold">Total Expenses</span>
+                      <span className="font-semibold">{t('reports.totalExpenses')}</span>
                       <span className="font-bold">{formatCurrency(report.totalExpenses)}</span>
                     </div>
                   </div>
@@ -319,31 +343,32 @@ export default function ReportsPage() {
           {/* Bar chart */}
           {chartData.length > 0 && (
             <Card>
-              <CardHeader>
+              <CardHeader className="p-4 sm:p-6">
                 <CardTitle className="flex items-center gap-2 text-base">
-                  <PieChart className="h-4 w-4" />
-                  Category Comparison
+                  <PieChart className="h-4 w-4 flex-shrink-0" />
+                  {t('reports.categoryComparison')}
                 </CardTitle>
-                <CardDescription>Amount by category (income vs expense)</CardDescription>
+                <CardDescription>{t('reports.amountByCategory')}</CardDescription>
               </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={360}>
-                  <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 30, left: 0, bottom: 0 }}>
+              <CardContent className="p-2 pt-0 sm:p-6 sm:pt-0">
+                <ResponsiveContainer width="100%" height={Math.max(220, chartData.length * 36)} className="sm:!h-[360px]">
+                  <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
                     <XAxis
                       type="number"
-                      tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                       axisLine={{ stroke: 'hsl(var(--border))' }}
                       tickLine={false}
-                      tickFormatter={(v) => `$${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`}
+                      tickFormatter={(v) => formatCurrencyCompact(v)}
                     />
                     <YAxis
                       type="category"
                       dataKey="name"
-                      tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                       axisLine={false}
                       tickLine={false}
-                      width={120}
+                      width={90}
+                      tickFormatter={(v: string) => (v.length > 12 ? `${v.slice(0, 11)}…` : v)}
                     />
                     <Tooltip
                       contentStyle={{
@@ -352,7 +377,7 @@ export default function ReportsPage() {
                         borderRadius: '8px',
                         fontSize: '13px',
                       }}
-                      formatter={(value: number) => formatCurrency(value)}
+                      formatter={(value) => formatCurrency(Number(value))}
                     />
                     <Bar dataKey="amount" radius={[0, 4, 4, 0]}>
                       {chartData.map((_, i) => (

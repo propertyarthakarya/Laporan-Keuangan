@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth-context';
+import { useLanguage } from '@/lib/i18n/language-context';
 import { PageHeader } from '@/components/app-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,24 +16,113 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Category, TransactionType } from '@/lib/types';
-import { Plus, Pencil, Trash2, Tags, CircleArrowUp as ArrowUpCircle, CircleArrowDown as ArrowDownCircle, Loader as Loader2 } from 'lucide-react';
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Tags,
+  CircleArrowUp as ArrowUpCircle,
+  CircleArrowDown as ArrowDownCircle,
+  Loader as Loader2,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+const ITEMS_PER_PAGE = 9;
+
+// Generate nomor halaman dengan ellipsis (misal: 1 ... 4 5 6 ... 12) biar nggak numpuk kalau halamannya banyak
+function getPageNumbers(current: number, total: number): (number | 'ellipsis')[] {
+  const delta = 1;
+  const range: number[] = [];
+  const withDots: (number | 'ellipsis')[] = [];
+
+  for (let i = 1; i <= total; i++) {
+    if (i === 1 || i === total || (i >= current - delta && i <= current + delta)) {
+      range.push(i);
+    }
+  }
+
+  let prev = 0;
+  for (const i of range) {
+    if (prev && i - prev > 1) withDots.push('ellipsis');
+    withDots.push(i);
+    prev = i;
+  }
+  return withDots;
+}
+
+function CategoryPagination({
+  page,
+  totalPages,
+  onChange,
+}: {
+  page: number;
+  totalPages: number;
+  onChange: (p: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+  const pages = getPageNumbers(page, totalPages);
+
+  return (
+    <div className="mt-4 flex items-center justify-center gap-1">
+      <Button
+        variant="outline"
+        size="icon"
+        className="h-8 w-8 flex-shrink-0"
+        disabled={page === 1}
+        onClick={() => onChange(page - 1)}
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+
+      {pages.map((p, idx) =>
+        p === 'ellipsis' ? (
+          <span key={`ellipsis-${idx}`} className="px-1.5 text-sm text-muted-foreground">
+            …
+          </span>
+        ) : (
+          <Button
+            key={p}
+            variant={p === page ? 'default' : 'outline'}
+            size="icon"
+            className="h-8 w-8 flex-shrink-0 text-sm"
+            onClick={() => onChange(p)}
+          >
+            {p}
+          </Button>
+        ),
+      )}
+
+      <Button
+        variant="outline"
+        size="icon"
+        className="h-8 w-8 flex-shrink-0"
+        disabled={page === totalPages}
+        onClick={() => onChange(page + 1)}
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+}
 
 export default function CategoriesPage() {
   const { user, getCategories, createCategory, updateCategory, deleteCategory } = useAuth();
+  const { t } = useLanguage();
   const router = useRouter();
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const queryClient = useQueryClient();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Category | null>(null);
   const [formError, setFormError] = useState('');
-  const [saving, setSaving] = useState(false);
 
   const [formName, setFormName] = useState('');
   const [formType, setFormType] = useState<TransactionType>('INCOME');
+
+  const [incomePage, setIncomePage] = useState(1);
+  const [expensePage, setExpensePage] = useState(1);
 
   useEffect(() => {
     if (user && user.role !== 'ADMIN') {
@@ -39,21 +130,59 @@ export default function CategoriesPage() {
     }
   }, [user, router]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const cats = await getCategories();
-      setCategories(cats);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load categories.');
-    } finally {
-      setLoading(false);
-    }
-  }, [getCategories]);
+  const {
+    data: categories = [],
+    isLoading: loading,
+    error: queryError,
+  } = useQuery({
+    queryKey: ['categories'],
+    queryFn: getCategories,
+    enabled: user?.role === 'ADMIN',
+  });
+
+  const error = queryError instanceof Error ? queryError.message : '';
+
+  const createMutation = useMutation({
+    mutationFn: createCategory,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories'] }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: { categoryName: string; type: TransactionType } }) =>
+      updateCategory(id, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories'] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteCategory,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['categories'] }),
+  });
+
+  const saving = createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
+
+  const incomeCats = categories.filter((c) => c.type === 'INCOME');
+  const expenseCats = categories.filter((c) => c.type === 'EXPENSE');
+
+  const incomeTotalPages = Math.max(1, Math.ceil(incomeCats.length / ITEMS_PER_PAGE));
+  const expenseTotalPages = Math.max(1, Math.ceil(expenseCats.length / ITEMS_PER_PAGE));
+
+  // Kalau kategori kehapus/berkurang sampai halaman aktif nggak ada lagi datanya, mundurin ke halaman terakhir yang valid
+  useEffect(() => {
+    if (incomePage > incomeTotalPages) setIncomePage(incomeTotalPages);
+  }, [incomePage, incomeTotalPages]);
 
   useEffect(() => {
-    if (user?.role === 'ADMIN') load();
-  }, [user, load]);
+    if (expensePage > expenseTotalPages) setExpensePage(expenseTotalPages);
+  }, [expensePage, expenseTotalPages]);
+
+  const paginatedIncome = incomeCats.slice(
+    (incomePage - 1) * ITEMS_PER_PAGE,
+    incomePage * ITEMS_PER_PAGE,
+  );
+  const paginatedExpense = expenseCats.slice(
+    (expensePage - 1) * ITEMS_PER_PAGE,
+    expensePage * ITEMS_PER_PAGE,
+  );
 
   function openCreate() {
     setEditing(null);
@@ -74,57 +203,41 @@ export default function CategoriesPage() {
   async function handleSave() {
     setFormError('');
     if (!formName.trim()) {
-      setFormError('Category name is required.');
+      setFormError(t('categories.nameRequired'));
       return;
     }
-    setSaving(true);
     try {
       if (editing) {
-        await updateCategory(editing.id, { categoryName: formName.trim(), type: formType });
+        await updateMutation.mutateAsync({ id: editing.id, data: { categoryName: formName.trim(), type: formType } });
       } else {
-        await createCategory({ categoryName: formName.trim(), type: formType });
+        await createMutation.mutateAsync({ categoryName: formName.trim(), type: formType });
       }
       setDialogOpen(false);
-      await load();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Failed to save category.');
-    } finally {
-      setSaving(false);
+      setFormError(err instanceof Error ? err.message : t('categories.saveFailed'));
     }
   }
 
   async function handleDelete() {
     if (!deleteTarget) return;
-    setSaving(true);
     try {
-      await deleteCategory(deleteTarget.id);
+      await deleteMutation.mutateAsync(deleteTarget.id);
       setDeleteTarget(null);
-      await load();
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Failed to delete category.');
-    } finally {
-      setSaving(false);
+      setFormError(err instanceof Error ? err.message : t('categories.deleteFailed'));
     }
   }
 
   if (user && user.role !== 'ADMIN') return null;
 
-  const incomeCats = categories.filter((c) => c.type === 'INCOME');
-  const expenseCats = categories.filter((c) => c.type === 'EXPENSE');
-
   const CategoryCard = ({ cat }: { cat: Category }) => (
     <Card className="animate-fade-in">
-      <CardContent className="flex items-center gap-3 p-4">
-        <div
-          className={cn(
-            'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl',
-            cat.type === 'INCOME' ? 'bg-secondary' : 'bg-foreground/5',
-          )}
-        >
+      <CardContent className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4">
+        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-secondary sm:h-10 sm:w-10">
           {cat.type === 'INCOME' ? (
-            <ArrowUpCircle className="h-5 w-5 text-foreground" />
+            <ArrowUpCircle className="h-4 w-4 text-green-600 dark:text-green-400 sm:h-5 sm:w-5" />
           ) : (
-            <ArrowDownCircle className="h-5 w-5 text-muted-foreground" />
+            <ArrowDownCircle className="h-4 w-4 text-red-600 dark:text-red-400 sm:h-5 sm:w-5" />
           )}
         </div>
         <div className="min-w-0 flex-1">
@@ -136,10 +249,10 @@ export default function CategoriesPage() {
               cat.type === 'INCOME' ? 'border-foreground text-foreground' : 'border-muted-foreground text-muted-foreground',
             )}
           >
-            {cat.type}
+            {cat.type === 'INCOME' ? t('categories.income') : t('categories.expense')}
           </Badge>
         </div>
-        <div className="flex flex-shrink-0 gap-1">
+        <div className="flex flex-shrink-0 gap-0.5 sm:gap-1">
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(cat)}>
             <Pencil className="h-3.5 w-3.5" />
           </Button>
@@ -157,11 +270,11 @@ export default function CategoriesPage() {
   );
 
   return (
-    <div className="p-6 lg:p-8 animate-fade-in">
-      <PageHeader title="Categories" description="Manage income and expense categories">
-        <Button onClick={openCreate}>
+    <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
+      <PageHeader title={t('categories.title')} description={t('categories.subtitle')}>
+        <Button onClick={openCreate} className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" />
-          Add Category
+          {t('categories.addCategory')}
         </Button>
       </PageHeader>
 
@@ -172,64 +285,66 @@ export default function CategoriesPage() {
       )}
 
       {loading ? (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-20" />
           ))}
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-6 sm:space-y-8">
           <div>
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-              <ArrowUpCircle className="h-4 w-4" />
-              Income Categories
-              <span className="ml-1 rounded-full bg-secondary px-2 py-0.5 text-xs">{incomeCats.length}</span>
+            <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-muted-foreground">
+              <ArrowUpCircle className="h-4 w-4 flex-shrink-0 text-green-600 dark:text-green-400" />
+              <span>{t('categories.incomeCategories')}</span>
+              <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">{incomeCats.length}</span>
             </h2>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {incomeCats.map((cat) => (
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3">
+              {paginatedIncome.map((cat) => (
                 <CategoryCard key={cat.id} cat={cat} />
               ))}
               {incomeCats.length === 0 && (
-                <Card>
+                <Card className="sm:col-span-2 xl:col-span-3">
                   <CardContent className="py-8 text-center text-sm text-muted-foreground">
                     <Tags className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
-                    No income categories yet
+                    {t('categories.noIncomeCategories')}
                   </CardContent>
                 </Card>
               )}
             </div>
+            <CategoryPagination page={incomePage} totalPages={incomeTotalPages} onChange={setIncomePage} />
           </div>
 
           <div>
-            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-              <ArrowDownCircle className="h-4 w-4" />
-              Expense Categories
-              <span className="ml-1 rounded-full bg-secondary px-2 py-0.5 text-xs">{expenseCats.length}</span>
+            <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-muted-foreground">
+              <ArrowDownCircle className="h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400" />
+              <span>{t('categories.expenseCategories')}</span>
+              <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">{expenseCats.length}</span>
             </h2>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {expenseCats.map((cat) => (
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3">
+              {paginatedExpense.map((cat) => (
                 <CategoryCard key={cat.id} cat={cat} />
               ))}
               {expenseCats.length === 0 && (
-                <Card>
+                <Card className="sm:col-span-2 xl:col-span-3">
                   <CardContent className="py-8 text-center text-sm text-muted-foreground">
                     <Tags className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
-                    No expense categories yet
+                    {t('categories.noExpenseCategories')}
                   </CardContent>
                 </Card>
               )}
             </div>
+            <CategoryPagination page={expensePage} totalPages={expenseTotalPages} onChange={setExpensePage} />
           </div>
         </div>
       )}
 
       {/* Create/Edit dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl sm:w-full">
           <DialogHeader>
-            <DialogTitle>{editing ? 'Edit Category' : 'Add Category'}</DialogTitle>
+            <DialogTitle>{editing ? t('categories.editCategoryTitle') : t('categories.addCategoryTitle')}</DialogTitle>
             <DialogDescription>
-              {editing ? 'Update the category details' : 'Create a new transaction category'}
+              {editing ? t('categories.editCategoryDesc') : t('categories.addCategoryDesc')}
             </DialogDescription>
           </DialogHeader>
 
@@ -241,32 +356,35 @@ export default function CategoriesPage() {
 
           <div className="space-y-4">
             <div>
-              <Label htmlFor="cat-name">Category Name</Label>
+              <Label htmlFor="cat-name">{t('categories.categoryName')}</Label>
               <Input
                 id="cat-name"
-                placeholder="e.g. Sales, Salaries, Rent"
+                placeholder={t('categories.categoryNamePlaceholder')}
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
                 autoFocus
+                className="mt-1.5"
               />
             </div>
             <div>
-              <Label>Type</Label>
+              <Label>{t('categories.type')}</Label>
               <Select value={formType} onValueChange={(v) => setFormType(v as TransactionType)}>
                 <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="INCOME">Income</SelectItem>
-                  <SelectItem value="EXPENSE">Expense</SelectItem>
+                  <SelectItem value="INCOME">{t('categories.income')}</SelectItem>
+                  <SelectItem value="EXPENSE">{t('categories.expense')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving}>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-0">
+            <Button variant="outline" onClick={() => setDialogOpen(false)} className="w-full sm:w-auto">
+              {t('common.cancel')}
+            </Button>
+            <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {editing ? 'Save changes' : 'Add category'}
+              {editing ? t('categories.saveChanges') : t('categories.addCategoryAction')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -274,21 +392,18 @@ export default function CategoriesPage() {
 
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl sm:w-full">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this category?</AlertDialogTitle>
+            <AlertDialogTitle>{t('categories.deleteTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the "{deleteTarget?.categoryName}" category. If any transactions
-              use this category, you will need to reassign them first.
+              {t('categories.deleteDesc', { name: deleteTarget?.categoryName ?? '' })}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-            >
+          <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row sm:gap-0">
+            <AlertDialogCancel className="w-full sm:w-auto">{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="w-full sm:w-auto">
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Delete
+              {t('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

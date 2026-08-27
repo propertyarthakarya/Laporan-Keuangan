@@ -12,7 +12,8 @@
     "prisma:studio": "prisma studio"
   },
   "prisma": {
-    "schema": "prisma/schema.prisma"
+    "schema": "prisma/schema.prisma",
+    "seed": "ts-node-dev --transpile-only src/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
