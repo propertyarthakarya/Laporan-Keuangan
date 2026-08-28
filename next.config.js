@@ -7,5 +7,13 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: { unoptimized: true },
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'https://laporan-money-be.vercel.app/api/:path*',
+      },
+    ];
+  },
 };
 module.exports = nextConfig;
