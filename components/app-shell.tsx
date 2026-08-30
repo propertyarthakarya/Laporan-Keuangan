@@ -20,12 +20,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Wallet, LayoutDashboard, ArrowLeftRight, Tags, ChartBar as FileBarChart, Users, LogOut, Menu, Loader as Loader2, Languages, Sun, Moon } from 'lucide-react';
+import { LayoutDashboard, ArrowLeftRight, Tags, ChartBar as FileBarChart, Users, LogOut, Menu, Loader as Loader2, Languages, Sun, Moon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TranslationKey } from '@/lib/i18n/translations';
 import { useTheme } from 'next-themes';
 import Image from 'next/image';
 import loadingGif from '@/app/img/Gift.gif';
+import logo from '@/app/img/Logo.svg';
 
 interface NavItem {
   href: string;
@@ -133,7 +134,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex h-16 items-center justify-between gap-2 border-b px-4">
         <div className="flex min-w-0 items-center gap-2">
           <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-foreground">
-            <Wallet className="h-4 w-4 text-background" />
+            <Image src={logo} alt="FinTrack" className="h-6 w-6" unoptimized />
           </div>
           <span className="truncate text-base font-bold tracking-tight">FinTrack</span>
         </div>
@@ -225,7 +226,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Button>
             </SheetTrigger>
             <div className="flex items-center gap-2">
-              <Wallet className="h-5 w-5" />
+              <Image src={logo} alt="FinTrack" className="h-7 w-7" unoptimized />
               <span className="font-bold">FinTrack</span>
             </div>
                    <div className="flex items-center gap-2">

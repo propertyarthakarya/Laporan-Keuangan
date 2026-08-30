@@ -13,6 +13,7 @@ const transactionSchema = z.object({
   description: z.string().max(500).optional().nullable(),
   amount: z.number().positive('Amount must be greater than zero'),
   transactionType: z.enum(['INCOME', 'EXPENSE']),
+  uniqueCode: z.string().max(100).optional().nullable(),
 });
 
 // GET /api/transactions — supports filtering by date range and category
@@ -73,6 +74,7 @@ router.post('/', requireRoles('ADMIN', 'STAFF'), async (req: AuthenticatedReques
         description: data.description || null,
         amount: data.amount,
         transactionType: data.transactionType,
+        uniqueCode: data.uniqueCode || null,
         createdById: req.user!.id,
       },
       include: {
@@ -116,6 +118,7 @@ router.put('/:id', requireRoles('ADMIN', 'STAFF'), async (req: AuthenticatedRequ
         description: data.description || null,
         amount: data.amount,
         transactionType: data.transactionType,
+        uniqueCode: data.uniqueCode || null,
       },
       include: {
         category: { select: { id: true, categoryName: true, type: true } },

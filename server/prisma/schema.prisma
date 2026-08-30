@@ -57,6 +57,7 @@ model Transaction {
   description     String?
   amount          Decimal         @db.Decimal(14, 2)
   transactionType TransactionType
+  uniqueCode      String?
   createdById     String
   createdBy       User            @relation("UserTransactions", fields: [createdById], references: [id])
   createdAt       DateTime        @default(now())

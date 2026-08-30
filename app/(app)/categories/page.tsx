@@ -107,6 +107,46 @@ function CategoryPagination({
   );
 }
 
+// Header seksi dengan garis aksen gradient sesuai tipe kategori, biar income & expense punya identitas warna yang jelas
+function SectionHeader({
+  icon,
+  label,
+  count,
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  count: number;
+  tone: 'income' | 'expense';
+}) {
+  return (
+    <div className="mb-3">
+      <h2 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-muted-foreground">
+        {icon}
+        <span>{label}</span>
+        <span
+          className={cn(
+            'rounded-full px-2 py-0.5 text-xs font-bold tabular-nums',
+            tone === 'income'
+              ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400'
+              : 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
+          )}
+        >
+          {count}
+        </span>
+      </h2>
+      <div
+        className={cn(
+          'mt-2 h-[3px] w-10 rounded-full bg-gradient-to-r',
+          tone === 'income'
+            ? 'from-green-500 to-green-500/10'
+            : 'from-red-500 to-red-500/10',
+        )}
+      />
+    </div>
+  );
+}
+
 export default function CategoriesPage() {
   const { user, getCategories, createCategory, updateCategory, deleteCategory } = useAuth();
   const { t } = useLanguage();
@@ -184,10 +224,10 @@ export default function CategoriesPage() {
     expensePage * ITEMS_PER_PAGE,
   );
 
-  function openCreate() {
+  function openCreate(presetType?: TransactionType) {
     setEditing(null);
     setFormName('');
-    setFormType('INCOME');
+    setFormType(presetType ?? 'INCOME');
     setFormError('');
     setDialogOpen(true);
   }
@@ -230,10 +270,20 @@ export default function CategoriesPage() {
 
   if (user && user.role !== 'ADMIN') return null;
 
-  const CategoryCard = ({ cat }: { cat: Category }) => (
-    <Card className="animate-fade-in">
+  const CategoryCard = ({ cat, index }: { cat: Category; index: number }) => (
+    <Card
+      className="group animate-fade-in transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+      style={{ animationDelay: `${Math.min(index, 8) * 40}ms`, animationFillMode: 'backwards' }}
+    >
       <CardContent className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4">
-        <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-secondary sm:h-10 sm:w-10">
+        <div
+          className={cn(
+            'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105 sm:h-10 sm:w-10',
+            cat.type === 'INCOME'
+              ? 'bg-green-100 dark:bg-green-950'
+              : 'bg-red-100 dark:bg-red-950',
+          )}
+        >
           {cat.type === 'INCOME' ? (
             <ArrowUpCircle className="h-4 w-4 text-green-600 dark:text-green-400 sm:h-5 sm:w-5" />
           ) : (
@@ -246,13 +296,15 @@ export default function CategoriesPage() {
             variant="outline"
             className={cn(
               'mt-0.5 text-[10px] font-bold',
-              cat.type === 'INCOME' ? 'border-foreground text-foreground' : 'border-muted-foreground text-muted-foreground',
+              cat.type === 'INCOME'
+                ? 'border-green-600/30 text-green-700 dark:text-green-400'
+                : 'border-red-600/30 text-red-700 dark:text-red-400',
             )}
           >
             {cat.type === 'INCOME' ? t('categories.income') : t('categories.expense')}
           </Badge>
         </div>
-        <div className="flex flex-shrink-0 gap-0.5 sm:gap-1">
+        <div className="flex flex-shrink-0 gap-0.5 opacity-70 transition-opacity duration-150 group-hover:opacity-100 sm:gap-1">
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(cat)}>
             <Pencil className="h-3.5 w-3.5" />
           </Button>
@@ -269,10 +321,37 @@ export default function CategoriesPage() {
     </Card>
   );
 
+  const EmptyState = ({ tone, onAdd }: { tone: 'income' | 'expense'; onAdd: () => void }) => (
+    <Card className="sm:col-span-2 xl:col-span-3 border-dashed">
+      <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
+        <div
+          className={cn(
+            'flex h-12 w-12 items-center justify-center rounded-full',
+            tone === 'income' ? 'bg-green-100 dark:bg-green-950' : 'bg-red-100 dark:bg-red-950',
+          )}
+        >
+          <Tags
+            className={cn(
+              'h-5 w-5',
+              tone === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
+            )}
+          />
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {tone === 'income' ? t('categories.noIncomeCategories') : t('categories.noExpenseCategories')}
+        </p>
+        <Button size="sm" variant="outline" onClick={onAdd}>
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          {t('categories.addCategory')}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
       <PageHeader title={t('categories.title')} description={t('categories.subtitle')}>
-        <Button onClick={openCreate} className="w-full sm:w-auto">
+        <Button onClick={() => openCreate()} className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" />
           {t('categories.addCategory')}
         </Button>
@@ -293,44 +372,36 @@ export default function CategoriesPage() {
       ) : (
         <div className="space-y-6 sm:space-y-8">
           <div>
-            <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-muted-foreground">
-              <ArrowUpCircle className="h-4 w-4 flex-shrink-0 text-green-600 dark:text-green-400" />
-              <span>{t('categories.incomeCategories')}</span>
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">{incomeCats.length}</span>
-            </h2>
+            <SectionHeader
+              icon={<ArrowUpCircle className="h-4 w-4 flex-shrink-0 text-green-600 dark:text-green-400" />}
+              label={t('categories.incomeCategories')}
+              count={incomeCats.length}
+              tone="income"
+            />
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3">
-              {paginatedIncome.map((cat) => (
-                <CategoryCard key={cat.id} cat={cat} />
+              {paginatedIncome.map((cat, i) => (
+                <CategoryCard key={cat.id} cat={cat} index={i} />
               ))}
               {incomeCats.length === 0 && (
-                <Card className="sm:col-span-2 xl:col-span-3">
-                  <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                    <Tags className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
-                    {t('categories.noIncomeCategories')}
-                  </CardContent>
-                </Card>
+                <EmptyState tone="income" onAdd={() => openCreate('INCOME')} />
               )}
             </div>
             <CategoryPagination page={incomePage} totalPages={incomeTotalPages} onChange={setIncomePage} />
           </div>
 
           <div>
-            <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-muted-foreground">
-              <ArrowDownCircle className="h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400" />
-              <span>{t('categories.expenseCategories')}</span>
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-xs">{expenseCats.length}</span>
-            </h2>
+            <SectionHeader
+              icon={<ArrowDownCircle className="h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400" />}
+              label={t('categories.expenseCategories')}
+              count={expenseCats.length}
+              tone="expense"
+            />
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3">
-              {paginatedExpense.map((cat) => (
-                <CategoryCard key={cat.id} cat={cat} />
+              {paginatedExpense.map((cat, i) => (
+                <CategoryCard key={cat.id} cat={cat} index={i} />
               ))}
               {expenseCats.length === 0 && (
-                <Card className="sm:col-span-2 xl:col-span-3">
-                  <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                    <Tags className="mx-auto mb-2 h-8 w-8 text-muted-foreground/40" />
-                    {t('categories.noExpenseCategories')}
-                  </CardContent>
-                </Card>
+                <EmptyState tone="expense" onAdd={() => openCreate('EXPENSE')} />
               )}
             </div>
             <CategoryPagination page={expensePage} totalPages={expenseTotalPages} onChange={setExpensePage} />

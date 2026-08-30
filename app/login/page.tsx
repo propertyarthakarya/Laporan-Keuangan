@@ -7,9 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardDescription, CardTitle } from '@/components/ui/card';
-import { Wallet, Eye, EyeOff, CircleAlert as AlertCircle, Loader as Loader2 } from 'lucide-react';
+import { Eye, EyeOff, CircleAlert as AlertCircle, Loader as Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import loadingGif from '@/app/img/Gift.gif';
+import logo from '@/app/img/Logo.svg';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -50,7 +51,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md px-4 animate-fade-in">
         <div className="mb-8 text-center">
           <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-xl bg-foreground">
-            <Wallet className="h-7 w-7 text-background" />
+            <Image src={logo} alt="FinTrack" className="h-10 w-10" unoptimized />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">FinTrack</h1>
           <p className="mt-1 text-sm text-muted-foreground">Corporate Financial Reporting</p>

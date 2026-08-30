@@ -29,6 +29,7 @@ export interface Transaction {
   description: string | null;
   amount: number;
   transactionType: TransactionType;
+  uniqueCode: string | null;
   createdById: string;
   createdBy: {
     id: string;

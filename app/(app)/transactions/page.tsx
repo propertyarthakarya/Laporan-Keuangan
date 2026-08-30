@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { DateRange } from 'react-day-picker';
 import { useAuth } from '@/lib/auth-context';
 import { useLanguage } from '@/lib/i18n/language-context';
 import { PageHeader } from '@/components/app-shell';
@@ -10,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -24,7 +27,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
-import { formatCurrency, formatDate, toInputDate } from '@/lib/format';
+import { formatCurrency, formatDate, formatTime, toInputDate } from '@/lib/format';
 import type { Transaction, Category, TransactionType } from '@/lib/types';
 import {
   Plus,
@@ -38,6 +41,8 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  Hash,
+  Calendar as CalendarIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -51,6 +56,7 @@ type TransactionFormData = {
   description: string;
   amount: string;
   transactionType: TransactionType;
+  uniqueCode: string;
 };
 
 type TransactionFilters = {
@@ -66,6 +72,7 @@ const EMPTY_FORM: TransactionFormData = {
   description: '',
   amount: '',
   transactionType: 'INCOME',
+  uniqueCode: '',
 };
 
 const ITEMS_PER_PAGE = 10;
@@ -73,6 +80,106 @@ const ITEMS_PER_PAGE = 10;
 // Ambil tipe fungsi `t` langsung dari useLanguage, biar konsisten dengan daftar key
 // yang sebenarnya (bukan `string` generik yang bikin TypeScript komplain).
 type TFunction = ReturnType<typeof useLanguage>['t'];
+
+// Warna income/expense disamain dengan palet dashboard (emerald/rose), bukan
+// green-600/red-600 generik, biar identitas visual satu aplikasi konsisten.
+const TYPE_STYLES = {
+  income: {
+    iconBg: 'bg-emerald-500/10 dark:bg-emerald-400/10',
+    iconText: 'text-emerald-600 dark:text-emerald-400',
+    badge: 'border-emerald-600/40 text-emerald-600 dark:border-emerald-400/40 dark:text-emerald-400',
+    amount: 'text-emerald-600 dark:text-emerald-400',
+    hoverRing: 'hover:border-emerald-500/30 hover:shadow-emerald-500/10',
+  },
+  expense: {
+    iconBg: 'bg-rose-500/10 dark:bg-rose-400/10',
+    iconText: 'text-rose-600 dark:text-rose-400',
+    badge: 'border-rose-600/40 text-rose-600 dark:border-rose-400/40 dark:text-rose-400',
+    amount: 'text-rose-600 dark:text-rose-400',
+    hoverRing: 'hover:border-rose-500/30 hover:shadow-rose-500/10',
+  },
+} as const;
+
+// ============================================================================
+// Sub-komponen: Filter tanggal (satu kalender range, ganti dua input from/to)
+// ============================================================================
+
+function DateRangeFilter({
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange,
+  t,
+}: {
+  startDate: string;
+  endDate: string;
+  onStartDateChange: (v: string) => void;
+  onEndDateChange: (v: string) => void;
+  t: TFunction;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const range: DateRange | undefined = {
+    from: startDate ? new Date(startDate) : undefined,
+    to: endDate ? new Date(endDate) : undefined,
+  };
+  const hasRange = !!(range.from || range.to);
+
+  function handleSelect(selected: DateRange | undefined) {
+    onStartDateChange(selected?.from ? toInputDate(selected.from) : '');
+    onEndDateChange(selected?.to ? toInputDate(selected.to) : '');
+  }
+
+  function handleClear(e: React.MouseEvent) {
+    e.stopPropagation();
+    onStartDateChange('');
+    onEndDateChange('');
+  }
+
+  const label = range.from
+    ? range.to
+      ? `${formatDate(range.from)} \u2013 ${formatDate(range.to)}`
+      : formatDate(range.from)
+    : t('transactions.fromDate');
+
+  return (
+    <div className="w-full sm:w-64">
+      <Label className="mb-1.5 block text-xs">{t('transactions.fromDate')}</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            className={cn('w-full justify-start gap-2 font-normal', !hasRange && 'text-muted-foreground')}
+          >
+            <CalendarIcon className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">{label}</span>
+            {hasRange && (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={handleClear}
+                className="ml-auto flex-shrink-0 rounded-full p-0.5 text-muted-foreground hover:bg-secondary hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </span>
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="range"
+            selected={range}
+            onSelect={handleSelect}
+            defaultMonth={range.from}
+            numberOfMonths={1}
+            initialFocus
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
 
 // ============================================================================
 // Sub-komponen: Filter bar
@@ -110,13 +217,13 @@ function TransactionFilterBar({
   t: TFunction;
 }) {
   return (
-    <Card className="mb-6">
+    <Card className="mb-6 transition-shadow duration-300 hover:shadow-md">
       <CardContent className="p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
           <div className="flex-1 min-w-[200px]">
             <Label className="mb-1.5 block text-xs">{t('transactions.search')}</Label>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground transition-colors" />
               <Input
                 placeholder={t('transactions.searchPlaceholder')}
                 value={searchQuery}
@@ -158,19 +265,22 @@ function TransactionFilterBar({
               </Select>
             </div>
 
-            <div className="w-full sm:w-40">
-              <Label className="mb-1.5 block text-xs">{t('transactions.fromDate')}</Label>
-              <Input type="date" value={filterStartDate} onChange={(e) => onFilterStartDateChange(e.target.value)} />
-            </div>
-
-            <div className="w-full sm:w-40">
-              <Label className="mb-1.5 block text-xs">{t('transactions.toDate')}</Label>
-              <Input type="date" value={filterEndDate} onChange={(e) => onFilterEndDateChange(e.target.value)} />
-            </div>
+            <DateRangeFilter
+              startDate={filterStartDate}
+              endDate={filterEndDate}
+              onStartDateChange={onFilterStartDateChange}
+              onEndDateChange={onFilterEndDateChange}
+              t={t}
+            />
           </div>
 
           {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={onClearFilters} className="self-start lg:mb-0.5 lg:self-auto">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClearFilters}
+              className="self-start text-muted-foreground transition-colors hover:text-foreground lg:mb-0.5 lg:self-auto"
+            >
               <X className="mr-1 h-3.5 w-3.5" />
               {t('transactions.clear')}
             </Button>
@@ -187,29 +297,43 @@ function TransactionFilterBar({
 
 function TransactionCard({
   tx,
+  index,
   canEdit,
   onEdit,
   onDeleteRequest,
   t,
 }: {
   tx: Transaction;
+  index: number;
   canEdit: boolean;
   onEdit: (tx: Transaction) => void;
   onDeleteRequest: (tx: Transaction) => void;
   t: TFunction;
 }) {
   const isIncome = tx.transactionType === 'INCOME';
+  const style = isIncome ? TYPE_STYLES.income : TYPE_STYLES.expense;
 
   return (
-    <Card className="animate-fade-in">
+    <Card
+      className={cn(
+        'group animate-fade-in border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md',
+        style.hoverRing,
+      )}
+      style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
+    >
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
           {/* Ikon tipe transaksi */}
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-secondary">
+          <div
+            className={cn(
+              'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110',
+              style.iconBg,
+            )}
+          >
             {isIncome ? (
-              <ArrowUpCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+              <ArrowUpCircle className={cn('h-5 w-5', style.iconText)} />
             ) : (
-              <ArrowDownCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+              <ArrowDownCircle className={cn('h-5 w-5', style.iconText)} />
             )}
           </div>
 
@@ -217,38 +341,36 @@ function TransactionCard({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5">
               <p className="text-sm font-semibold break-words">{tx.category.categoryName}</p>
-              <Badge
-                variant="outline"
-                className={cn(
-                  'flex-shrink-0 text-[10px] font-bold',
-                  isIncome
-                    ? 'border-green-600 text-green-600 dark:border-green-400 dark:text-green-400'
-                    : 'border-red-600 text-red-600 dark:border-red-400 dark:text-red-400',
-                )}
-              >
+              <Badge variant="outline" className={cn('flex-shrink-0 text-[10px] font-bold', style.badge)}>
                 {isIncome ? t('transactions.income') : t('transactions.expense')}
               </Badge>
+              {tx.uniqueCode && (
+                <Badge
+                  variant="outline"
+                  className="flex-shrink-0 gap-1 border-border text-[10px] font-mono font-medium text-muted-foreground"
+                >
+                  <Hash className="h-2.5 w-2.5" />
+                  {tx.uniqueCode}
+                </Badge>
+              )}
             </div>
+            {/* Tanggal transaksi (tx.date) dipisah dari jam input (tx.createdAt), karena
+               keduanya bisa beda: tanggal transaksi diisi manual, jam input otomatis dari sistem. */}
             <p className="mt-1 text-xs text-muted-foreground line-clamp-2 sm:truncate">
               {tx.description || t('transactions.noDescription')} &middot; {formatDate(tx.date)} &middot;{' '}
-              {t('transactions.by')} {tx.createdBy.name}
+              {formatTime(tx.createdAt)} &middot; {t('transactions.by')} {tx.createdBy.name}
             </p>
           </div>
 
           {/* Nominal + aksi */}
           <div className="flex flex-shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-4">
-            <p
-              className={cn(
-                'whitespace-nowrap text-sm font-bold',
-                isIncome ? 'text-foreground' : 'text-muted-foreground',
-              )}
-            >
+            <p className={cn('whitespace-nowrap font-mono text-sm font-bold tabular-nums', style.amount)}>
               {isIncome ? '+' : '-'}
               {formatCurrency(tx.amount)}
             </p>
 
             {canEdit && (
-              <div className="flex gap-1">
+              <div className="flex gap-1 opacity-70 transition-opacity group-hover:opacity-100">
                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(tx)}>
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
@@ -311,7 +433,7 @@ function TransactionFormDialog({
         </DialogHeader>
 
         {formError && (
-          <div className="rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground">
+          <div className="rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground animate-fade-in">
             {formError}
           </div>
         )}
@@ -325,20 +447,20 @@ function TransactionFormDialog({
                 type="button"
                 variant={form.transactionType === 'INCOME' ? 'default' : 'outline'}
                 onClick={() => onFormChange({ transactionType: 'INCOME', categoryId: '' })}
-                className="flex-1"
+                className="flex-1 transition-all"
                 size="sm"
               >
-                <ArrowUpCircle className="mr-2 h-4 w-4 text-green-600 dark:text-green-400" />
+                <ArrowUpCircle className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 {t('transactions.income')}
               </Button>
               <Button
                 type="button"
                 variant={form.transactionType === 'EXPENSE' ? 'default' : 'outline'}
                 onClick={() => onFormChange({ transactionType: 'EXPENSE', categoryId: '' })}
-                className="flex-1"
+                className="flex-1 transition-all"
                 size="sm"
               >
-                <ArrowDownCircle className="mr-2 h-4 w-4 text-red-600 dark:text-red-400" />
+                <ArrowDownCircle className="mr-2 h-4 w-4 text-rose-600 dark:text-rose-400" />
                 {t('transactions.expense')}
               </Button>
             </div>
@@ -380,6 +502,20 @@ function TransactionFormDialog({
               placeholder="0.00"
               value={form.amount}
               onChange={(e) => onFormChange({ amount: e.target.value })}
+              className="font-mono tabular-nums"
+            />
+          </div>
+
+          {/* Kode unik — opsional, biasanya buat nomor invoice/referensi manual */}
+          <div>
+            <Label htmlFor="tx-unique-code">{t('transactions.uniqueCode')}</Label>
+            <Input
+              id="tx-unique-code"
+              type="text"
+              placeholder={t('transactions.uniqueCodePlaceholder')}
+              value={form.uniqueCode}
+              onChange={(e) => onFormChange({ uniqueCode: e.target.value })}
+              className="font-mono"
             />
           </div>
 
@@ -440,7 +576,7 @@ function DeleteTransactionDialog({
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-          <AlertDialogAction onClick={onConfirm}>
+          <AlertDialogAction onClick={onConfirm} className="bg-rose-600 hover:bg-rose-700 dark:bg-rose-500 dark:hover:bg-rose-600">
             {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             {t('common.delete')}
           </AlertDialogAction>
@@ -521,7 +657,7 @@ function PaginationControls({
               variant={page === currentPage ? 'default' : 'outline'}
               size="icon"
               onClick={() => onPageChange(page)}
-              className="h-8 w-8"
+              className="h-8 w-8 transition-transform hover:scale-105"
             >
               {page}
             </Button>
@@ -648,6 +784,7 @@ export default function TransactionsPage() {
       description: tx.description || '',
       amount: String(tx.amount),
       transactionType: tx.transactionType,
+      uniqueCode: tx.uniqueCode || '',
     });
     setFormError('');
     setDialogOpen(true);
@@ -672,6 +809,7 @@ export default function TransactionsPage() {
       description: form.description || null,
       amount,
       transactionType: form.transactionType,
+      uniqueCode: form.uniqueCode || null,
     };
 
     try {
@@ -713,7 +851,8 @@ export default function TransactionsPage() {
     ? transactions.filter(
         (tx) =>
           tx.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          tx.category.categoryName.toLowerCase().includes(searchQuery.toLowerCase()),
+          tx.category.categoryName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          tx.uniqueCode?.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     : transactions;
 
@@ -738,7 +877,7 @@ export default function TransactionsPage() {
     <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
       <PageHeader title={t('transactions.title')} description={t('transactions.subtitle')}>
         {canEdit && (
-          <Button onClick={openCreateDialog}>
+          <Button onClick={openCreateDialog} className="transition-transform hover:scale-[1.02]">
             <Plus className="mr-2 h-4 w-4" />
             {t('transactions.addTransaction')}
           </Button>
@@ -763,7 +902,7 @@ export default function TransactionsPage() {
       />
 
       {error && (
-        <div className="mb-4 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-foreground">
+        <div className="mb-4 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-foreground animate-fade-in">
           {error}
         </div>
       )}
@@ -775,9 +914,11 @@ export default function TransactionsPage() {
           ))}
         </div>
       ) : filteredTransactions.length === 0 ? (
-        <Card>
+        <Card className="animate-fade-in">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Filter className="mb-3 h-10 w-10 text-muted-foreground/50" />
+            <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-secondary">
+              <Filter className="h-7 w-7 text-muted-foreground/50" />
+            </div>
             <p className="text-sm font-medium text-muted-foreground">{t('transactions.noTransactionsFound')}</p>
             <p className="mt-1 text-xs text-muted-foreground/70">
               {hasFilters ? t('transactions.tryAdjustingFilters') : t('transactions.addToGetStarted')}
@@ -787,10 +928,11 @@ export default function TransactionsPage() {
       ) : (
         <>
           <div className="space-y-3">
-            {paginatedTransactions.map((tx) => (
+            {paginatedTransactions.map((tx, i) => (
               <TransactionCard
                 key={tx.id}
                 tx={tx}
+                index={i}
                 canEdit={canEdit}
                 onEdit={openEditDialog}
                 onDeleteRequest={setDeleteTarget}
