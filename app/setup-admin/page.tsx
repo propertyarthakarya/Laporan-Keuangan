@@ -70,9 +70,9 @@ export default function SetupAdminPage() {
       <div className="w-full max-w-md px-4 animate-fade-in">
         <div className="mb-8 text-center">
           <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-xl bg-foreground">
-            <Image src={logo} alt="FinTrack" className="h-8 w-8" unoptimized />
+            <Image src={logo} alt="ArthaKarya Flow" className="h-8 w-8" unoptimized />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">FinTrack</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">ArthaKarya Flow</h1>
           <p className="mt-1 text-sm text-muted-foreground">Corporate Financial Reporting</p>
         </div>
 

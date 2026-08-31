@@ -12,7 +12,7 @@ interface LanguageContextValue {
 
 const LanguageContext = createContext<LanguageContextValue | undefined>(undefined);
 
-const STORAGE_KEY = 'fintrack-language';
+const STORAGE_KEY = 'ArthaKarya Flow-language';
 
 function getNestedValue(obj: Record<string, unknown>, path: string): string {
   const value = path.split('.').reduce<unknown>((acc, key) => {

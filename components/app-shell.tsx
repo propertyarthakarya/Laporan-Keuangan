@@ -131,17 +131,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // separate header, so it keeps showing them.
   const SidebarContent = ({ showToggles = true }: { showToggles?: boolean }) => (
     <div className="flex h-full flex-col">
-      <div className="flex h-16 items-center justify-between gap-2 border-b px-4">
-        <div className="flex min-w-0 items-center gap-2">
+      <div className="flex h-16 items-center justify-between gap-1.5 border-b px-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-foreground">
-            <Image src={logo} alt="FinTrack" className="h-6 w-6" unoptimized />
+            {/* bg-foreground flips color with the theme (dark box in light mode,
+               light box in dark mode). Logo.svg is a dark-colored mark, so it
+               needs to invert to white when the box is dark, and revert back
+               to its own color when the box is light — otherwise it disappears
+               into the box in light mode. */}
+            <Image src={logo} alt="ArthaKarya Flow" className="h-6 w-6 invert dark:invert-0" unoptimized />
           </div>
-          <span className="truncate text-base font-bold tracking-tight">FinTrack</span>
+          <span className="truncate text-base font-bold tracking-tight">
+            ArthaKarya<span className="hidden xl:inline"> Flow</span>
+          </span>
         </div>
         {showToggles && (
-          <div className="flex flex-shrink-0 items-center gap-1.5">
+          <div className="flex flex-shrink-0 items-center gap-1">
             <ThemeToggle className="h-8 w-8" />
-            <LanguageToggle className="h-8 gap-1 px-2" />
+            <LanguageToggle className="h-8 gap-1 px-1.5" />
           </div>
         )}
       </div>
@@ -213,7 +220,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <aside className="hidden w-64 flex-shrink-0 border-r bg-card lg:flex lg:flex-col">
+      <aside className="hidden w-72 flex-shrink-0 border-r bg-card lg:flex lg:flex-col">
         <SidebarContent />
       </aside>
 
@@ -226,8 +233,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Button>
             </SheetTrigger>
             <div className="flex items-center gap-2">
-              <Image src={logo} alt="FinTrack" className="h-7 w-7" unoptimized />
-              <span className="font-bold">FinTrack</span>
+              {/* No wrapping box here — the logo sits directly on bg-card, which
+                 follows the theme normally (light card in light mode, dark card
+                 in dark mode). So it only needs to invert in dark mode, unlike
+                 the sidebar version above which sits inside an inverted box. */}
+              <Image src={logo} alt="ArthaKarya Flow" className="h-7 w-7 dark:invert" unoptimized />
+              <span className="font-bold">ArthaKarya</span>
             </div>
                    <div className="flex items-center gap-2">
               <ThemeToggle />

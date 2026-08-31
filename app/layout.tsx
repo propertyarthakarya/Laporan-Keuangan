@@ -8,7 +8,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'FinTrack Corporate Financial Reporting',
+  title: 'ArthaKarya Flow',
   description: 'Corporate financial reporting and transaction management platform',
 };
 
