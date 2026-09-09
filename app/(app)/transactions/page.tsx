@@ -41,8 +41,10 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  ArrowLeft,
   Hash,
   Calendar as CalendarIcon,
+  Wallet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -81,24 +83,473 @@ const ITEMS_PER_PAGE = 10;
 // yang sebenarnya (bukan `string` generik yang bikin TypeScript komplain).
 type TFunction = ReturnType<typeof useLanguage>['t'];
 
+// ============================================================================
+// Sub-komponen: Category picker untuk FORM tambah/edit (drill-down, dibatasi type)
+// ============================================================================
+
+function CategoryPicker({
+  categories,
+  type,
+  value,
+  onChange,
+  t,
+}: {
+  categories: Category[];
+  type: TransactionType;
+  value: string;
+  onChange: (value: string) => void;
+  t: TFunction;
+}) {
+  const [open, setOpen] = useState(false);
+  const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
+
+  const categoriesForType = categories.filter(
+    (category) => category.type === type,
+  );
+
+  const parentCategories = categoriesForType.filter(
+    (category) => !category.parentId,
+  );
+
+  const selectedCategory = categoriesForType.find(
+    (category) => category.id === value,
+  );
+
+  const selectedParent = selectedCategory?.parentId
+    ? parentCategories.find(
+        (parent) => parent.id === selectedCategory.parentId,
+      )
+    : selectedCategory;
+
+  const activeParent = parentCategories.find(
+    (parent) => parent.id === selectedParentId,
+  );
+
+  const children = activeParent
+    ? categoriesForType.filter(
+        (category) => category.parentId === activeParent.id,
+      )
+    : [];
+
+  function handleParentClick(parent: Category) {
+    const parentChildren = categoriesForType.filter(
+      (category) => category.parentId === parent.id,
+    );
+
+    if (parentChildren.length === 0) {
+      onChange(parent.id);
+      setSelectedParentId(null);
+      setOpen(false);
+      return;
+    }
+
+    setSelectedParentId(parent.id);
+  }
+
+  function handleChildClick(child: Category) {
+    onChange(child.id);
+    setSelectedParentId(null);
+    setOpen(false);
+  }
+
+  function handleBack() {
+    setSelectedParentId(null);
+  }
+
+  const displayLabel =
+    selectedCategory?.parentId && selectedParent
+      ? `${selectedParent.categoryName} / ${selectedCategory.categoryName}`
+      : selectedCategory?.categoryName ?? '';
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+
+        if (!nextOpen) {
+          setSelectedParentId(null);
+        }
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          id="tx-category"
+          type="button"
+          variant="outline"
+          className={cn(
+            'w-full justify-between font-normal',
+            !displayLabel && 'text-muted-foreground',
+          )}
+        >
+          <span className="truncate">
+            {displayLabel ||
+              t('transactions.selectCategory')}
+          </span>
+
+          <ChevronRight className="ml-2 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] p-1"
+        align="start"
+      >
+        {!selectedParentId ? (
+          <div className="space-y-1">
+            {parentCategories.map((parent) => {
+              const hasChildren = categoriesForType.some(
+                (category) =>
+                  category.parentId === parent.id,
+              );
+
+              return (
+                <button
+                  key={parent.id}
+                  type="button"
+                  onClick={() =>
+                    handleParentClick(parent)
+                  }
+                  className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-secondary"
+                >
+                  <span className="truncate font-medium">
+                    {parent.categoryName}
+                  </span>
+
+                  {hasChildren && (
+                    <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={handleBack}
+              className="mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium hover:bg-secondary"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span className="truncate">
+                {activeParent?.categoryName}
+              </span>
+            </button>
+
+            <div className="border-t pt-1">
+              {children.map((child) => (
+                <button
+                  key={child.id}
+                  type="button"
+                  onClick={() =>
+                    handleChildClick(child)
+                  }
+                  className="flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-secondary"
+                >
+                  {child.categoryName}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ============================================================================
+// Sub-komponen: Category picker untuk FILTER (drill-down, ikut mengikuti Jenis
+// yang aktif, dengan opsi "Semua Kategori")
+// ============================================================================
+
+function CategoryFilterPicker({
+  categories,
+  type,
+  value,
+  onChange,
+  t,
+}: {
+  categories: Category[];
+  type: TransactionType | 'all';
+  value: string;
+  onChange: (value: string) => void;
+  t: TFunction;
+}) {
+  const [open, setOpen] = useState(false);
+  const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
+
+  // Kategori yang relevan dengan Jenis yang aktif (atau semua kalau type === 'all')
+  const categoriesForType =
+    type === 'all'
+      ? categories
+      : categories.filter((category) => category.type === type);
+
+  const parentCategories = categoriesForType.filter(
+    (category) => !category.parentId,
+  );
+
+  const selectedCategory = categoriesForType.find(
+    (category) => category.id === value,
+  );
+
+  const selectedParent = selectedCategory?.parentId
+    ? parentCategories.find(
+        (parent) => parent.id === selectedCategory.parentId,
+      )
+    : selectedCategory;
+
+  const activeParent = parentCategories.find(
+    (parent) => parent.id === selectedParentId,
+  );
+
+  const children = activeParent
+    ? categoriesForType.filter(
+        (category) => category.parentId === activeParent.id,
+      )
+    : [];
+
+  function handleSelectAll() {
+    onChange('all');
+    setSelectedParentId(null);
+    setOpen(false);
+  }
+
+  function handleParentClick(parent: Category) {
+    const parentChildren = categoriesForType.filter(
+      (category) => category.parentId === parent.id,
+    );
+
+    if (parentChildren.length === 0) {
+      onChange(parent.id);
+      setSelectedParentId(null);
+      setOpen(false);
+      return;
+    }
+
+    setSelectedParentId(parent.id);
+  }
+
+  function handleSelectParentDirectly(parent: Category) {
+    onChange(parent.id);
+    setSelectedParentId(null);
+    setOpen(false);
+  }
+
+  function handleChildClick(child: Category) {
+    onChange(child.id);
+    setSelectedParentId(null);
+    setOpen(false);
+  }
+
+  function handleBack() {
+    setSelectedParentId(null);
+  }
+
+  const displayLabel =
+    value === 'all' || !value
+      ? t('transactions.allCategories')
+      : selectedCategory?.parentId && selectedParent
+        ? `${selectedParent.categoryName} / ${selectedCategory.categoryName}`
+        : selectedCategory?.categoryName ?? t('transactions.allCategories');
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setSelectedParentId(null);
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(
+            'w-full justify-between font-normal',
+            (value === 'all' || !value) && 'text-muted-foreground',
+          )}
+        >
+          <span className="truncate">{displayLabel}</span>
+          <ChevronRight className="ml-2 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-1" align="start">
+        {!selectedParentId ? (
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={handleSelectAll}
+              className={cn(
+                'flex w-full items-center rounded-md px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-secondary',
+                (value === 'all' || !value) && 'bg-secondary',
+              )}
+            >
+              {t('transactions.allCategories')}
+            </button>
+
+            <div className="border-t pt-1">
+              {parentCategories.map((parent) => {
+                const hasChildren = categoriesForType.some(
+                  (category) => category.parentId === parent.id,
+                );
+
+                return (
+                  <button
+                    key={parent.id}
+                    type="button"
+                    onClick={() => handleParentClick(parent)}
+                    className={cn(
+                      'flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-secondary',
+                      value === parent.id && 'bg-secondary',
+                    )}
+                  >
+                    <span className="truncate font-medium">{parent.categoryName}</span>
+                    {hasChildren && (
+                      <ChevronRight className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <button
+              type="button"
+              onClick={handleBack}
+              className="mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium hover:bg-secondary"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span className="truncate">{activeParent?.categoryName}</span>
+            </button>
+
+            <div className="border-t pt-1">
+              <button
+                type="button"
+                onClick={() => activeParent && handleSelectParentDirectly(activeParent)}
+                className={cn(
+                  'flex w-full items-center rounded-md px-3 py-2 text-left text-sm italic text-muted-foreground transition-colors hover:bg-secondary',
+                  value === activeParent?.id && 'bg-secondary',
+                )}
+              >
+                {t('transactions.allCategories')} &middot; {activeParent?.categoryName}
+              </button>
+
+              {children.map((child) => (
+                <button
+                  key={child.id}
+                  type="button"
+                  onClick={() => handleChildClick(child)}
+                  className={cn(
+                    'flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-secondary',
+                    value === child.id && 'bg-secondary',
+                  )}
+                >
+                  {child.categoryName}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // Warna income/expense disamain dengan palet dashboard (emerald/rose), bukan
 // green-600/red-600 generik, biar identitas visual satu aplikasi konsisten.
 const TYPE_STYLES = {
   income: {
     iconBg: 'bg-emerald-500/10 dark:bg-emerald-400/10',
     iconText: 'text-emerald-600 dark:text-emerald-400',
-    badge: 'border-emerald-600/40 text-emerald-600 dark:border-emerald-400/40 dark:text-emerald-400',
     amount: 'text-emerald-600 dark:text-emerald-400',
-    hoverRing: 'hover:border-emerald-500/30 hover:shadow-emerald-500/10',
   },
   expense: {
     iconBg: 'bg-rose-500/10 dark:bg-rose-400/10',
     iconText: 'text-rose-600 dark:text-rose-400',
-    badge: 'border-rose-600/40 text-rose-600 dark:border-rose-400/40 dark:text-rose-400',
     amount: 'text-rose-600 dark:text-rose-400',
-    hoverRing: 'hover:border-rose-500/30 hover:shadow-rose-500/10',
   },
 } as const;
+
+// ============================================================================
+// Sub-komponen: Kartu ringkasan (Total Pemasukan / Pengeluaran / Selisih)
+// Dihitung dari seluruh hasil yang sudah difilter & dicari, bukan cuma
+// halaman yang sedang tampil, biar mewakili keseluruhan data terpilih.
+// ============================================================================
+
+function TransactionSummary({
+  transactions,
+  t,
+}: {
+  transactions: Transaction[];
+  t: TFunction;
+}) {
+  const totalIncome = transactions
+    .filter((tx) => tx.transactionType === 'INCOME')
+    .reduce((sum, tx) => sum + tx.amount, 0);
+
+  const totalExpense = transactions
+    .filter((tx) => tx.transactionType === 'EXPENSE')
+    .reduce((sum, tx) => sum + tx.amount, 0);
+
+  const balance = totalIncome - totalExpense;
+  const isPositive = balance >= 0;
+
+  return (
+    <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <Card className="border-emerald-600/20 bg-emerald-500/5 dark:border-emerald-400/20 dark:bg-emerald-400/5">
+        <CardContent className="flex items-center gap-3 p-4">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 dark:bg-emerald-400/10">
+            <ArrowUpCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">{t('transactions.totalIncome')}</p>
+            <p className="truncate font-mono text-base font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+              {formatCurrency(totalIncome)}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-rose-600/20 bg-rose-500/5 dark:border-rose-400/20 dark:bg-rose-400/5">
+        <CardContent className="flex items-center gap-3 p-4">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-rose-500/10 dark:bg-rose-400/10">
+            <ArrowDownCircle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">{t('transactions.totalExpense')}</p>
+            <p className="truncate font-mono text-base font-bold tabular-nums text-rose-600 dark:text-rose-400">
+              {formatCurrency(totalExpense)}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="flex items-center gap-3 p-4">
+          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-secondary">
+            <Wallet className="h-4 w-4 text-foreground" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">{t('transactions.netBalance')}</p>
+            <p
+              className={cn(
+                'truncate font-mono text-base font-bold tabular-nums',
+                isPositive
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-rose-600 dark:text-rose-400',
+              )}
+            >
+              {isPositive ? '+' : '-'}
+              {formatCurrency(Math.abs(balance))}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 // ============================================================================
 // Sub-komponen: Filter tanggal (satu kalender range, ganti dua input from/to)
@@ -234,26 +685,26 @@ function TransactionFilterBar({
           </div>
 
           <div className="grid grid-cols-2 gap-4 sm:flex sm:flex-wrap sm:gap-4">
-            <div className="w-full sm:w-44">
+            <div className="w-full sm:w-52">
               <Label className="mb-1.5 block text-xs">{t('transactions.category')}</Label>
-              <Select value={filterCategory} onValueChange={onFilterCategoryChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t('transactions.allCategories')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t('transactions.allCategories')}</SelectItem>
-                  {categories.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.categoryName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CategoryFilterPicker
+                categories={categories}
+                type={filterType as TransactionType | 'all'}
+                value={filterCategory}
+                onChange={onFilterCategoryChange}
+                t={t}
+              />
             </div>
 
             <div className="w-full sm:w-36">
               <Label className="mb-1.5 block text-xs">{t('transactions.type')}</Label>
-              <Select value={filterType} onValueChange={onFilterTypeChange}>
+              <Select
+                value={filterType}
+                onValueChange={(v) => {
+                  onFilterTypeChange(v);
+                  onFilterCategoryChange('all');
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder={t('transactions.allTypes')} />
                 </SelectTrigger>
@@ -292,10 +743,29 @@ function TransactionFilterBar({
 }
 
 // ============================================================================
-// Sub-komponen: Satu baris/kartu transaksi
+// Sub-komponen: Header kolom tabel (desktop saja)
+// Tanggal tidak lagi jadi kolom sendiri karena sudah diwakili header grup
+// tanggal di atas tiap kelompok transaksi (lihat groupByDate di bawah).
 // ============================================================================
 
-function TransactionCard({
+function TransactionTableHeader({ t }: { t: TFunction }) {
+  return (
+    <div className="hidden grid-cols-[64px_180px_1fr_110px_130px_84px] gap-4 border-b border-border px-4 py-2 text-xs font-medium text-muted-foreground lg:grid">
+      <span />
+      <span className="truncate overflow-hidden whitespace-nowrap">{t('transactions.category')}</span>
+      <span className="truncate overflow-hidden whitespace-nowrap">{t('transactions.description')}</span>
+      <span className="truncate overflow-hidden whitespace-nowrap">{t('transactions.uniqueCode')}</span>
+      <span className="truncate overflow-hidden whitespace-nowrap text-right">{t('transactions.amount')}</span>
+      <span />
+    </div>
+  );
+}
+
+// ============================================================================
+// Sub-komponen: Satu baris transaksi (tabel di desktop, kartu ringkas di mobile)
+// ============================================================================
+
+function TransactionRow({
   tx,
   index,
   canEdit,
@@ -313,71 +783,147 @@ function TransactionCard({
   const isIncome = tx.transactionType === 'INCOME';
   const style = isIncome ? TYPE_STYLES.income : TYPE_STYLES.expense;
 
+  // Nama kategori induk selalu jadi judul utama; nama sub-kategori (kalau ada)
+  // ditampilkan terpisah di bawahnya, bukan digabung jadi "Induk / Sub" satu baris.
+  const parentName = tx.category.parent?.categoryName ?? tx.category.categoryName;
+  const subName = tx.category.parent ? tx.category.categoryName : null;
+
   return (
-    <Card
-      className={cn(
-        'group animate-fade-in border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md',
-        style.hoverRing,
-      )}
-      style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
+    <div
+      className="group animate-fade-in border-b border-border transition-colors last:border-b-0 hover:bg-secondary/50"
+      style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
     >
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          {/* Ikon tipe transaksi */}
+      {/* Desktop: baris tabel */}
+      <div className="hidden grid-cols-[64px_180px_1fr_110px_130px_84px] items-center gap-4 px-4 py-3 lg:grid">
+        <div className="truncate overflow-hidden whitespace-nowrap text-xs text-muted-foreground">{formatTime(tx.createdAt)}</div>
+
+        <div className="flex min-w-0 items-center gap-3">
           <div
             className={cn(
-              'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110',
+              'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg',
               style.iconBg,
             )}
           >
             {isIncome ? (
-              <ArrowUpCircle className={cn('h-5 w-5', style.iconText)} />
+              <ArrowUpCircle className={cn('h-4 w-4', style.iconText)} />
             ) : (
-              <ArrowDownCircle className={cn('h-5 w-5', style.iconText)} />
+              <ArrowDownCircle className={cn('h-4 w-4', style.iconText)} />
             )}
           </div>
-
-          {/* Detail transaksi */}
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <p className="text-sm font-semibold break-words">{tx.category.categoryName}</p>
-              <Badge variant="outline" className={cn('flex-shrink-0 text-[10px] font-bold', style.badge)}>
-                {isIncome ? t('transactions.income') : t('transactions.expense')}
-              </Badge>
-              {tx.uniqueCode && (
-                <Badge
-                  variant="outline"
-                  className="flex-shrink-0 gap-1 border-border text-[10px] font-mono font-medium text-muted-foreground"
-                >
-                  <Hash className="h-2.5 w-2.5" />
-                  {tx.uniqueCode}
-                </Badge>
-              )}
-            </div>
-            {/* Tanggal transaksi (tx.date) dipisah dari jam input (tx.createdAt), karena
-               keduanya bisa beda: tanggal transaksi diisi manual, jam input otomatis dari sistem. */}
-            <p className="mt-1 text-xs text-muted-foreground line-clamp-2 sm:truncate">
-              {tx.description || t('transactions.noDescription')} &middot; {formatDate(tx.date)} &middot;{' '}
-              {formatTime(tx.createdAt)} &middot; {t('transactions.by')} {tx.createdBy.name}
-            </p>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">{parentName}</p>
+            {subName && (
+              <p className="truncate text-xs text-muted-foreground">{subName}</p>
+            )}
           </div>
+        </div>
 
-          {/* Nominal + aksi */}
-          <div className="flex flex-shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-4">
-            <p className={cn('whitespace-nowrap font-mono text-sm font-bold tabular-nums', style.amount)}>
+        <div className="min-w-0">
+          <p className="truncate text-sm text-foreground">
+            {tx.description || t('transactions.noDescription')}
+          </p>
+        </div>
+
+        <div className="text-xs text-muted-foreground">
+          {tx.uniqueCode ? (
+            <span className="inline-flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 font-mono">
+              <Hash className="h-2.5 w-2.5" />
+              {tx.uniqueCode}
+            </span>
+          ) : (
+            <span className="text-muted-foreground/50">&mdash;</span>
+          )}
+        </div>
+
+        <div className="text-right">
+          <p className={cn('font-mono text-sm font-bold tabular-nums', style.amount)}>
+            {isIncome ? '+' : '-'}
+            {formatCurrency(tx.amount)}
+          </p>
+          <p className="truncate text-[11px] text-muted-foreground">{tx.createdBy.name}</p>
+        </div>
+
+        <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          {canEdit && (
+            <>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(tx)}>
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={() => onDeleteRequest(tx)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Mobile & tablet: kartu ringkas */}
+      <div className="flex items-start gap-3 p-4 lg:hidden">
+        <div
+          className={cn(
+            'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl',
+            style.iconBg,
+          )}
+        >
+          {isIncome ? (
+            <ArrowUpCircle className={cn('h-5 w-5', style.iconText)} />
+          ) : (
+            <ArrowDownCircle className={cn('h-5 w-5', style.iconText)} />
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{parentName}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {subName ? `${subName} \u00b7 ${formatTime(tx.createdAt)}` : formatTime(tx.createdAt)}
+              </p>
+            </div>
+            <p
+              className={cn(
+                'flex-shrink-0 whitespace-nowrap font-mono text-sm font-bold tabular-nums',
+                style.amount,
+              )}
+            >
               {isIncome ? '+' : '-'}
               {formatCurrency(tx.amount)}
             </p>
+          </div>
+
+          <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">
+            {tx.description || t('transactions.noDescription')}
+          </p>
+
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {tx.uniqueCode && (
+              <Badge
+                variant="outline"
+                className="gap-1 border-border text-[10px] font-mono font-medium text-muted-foreground"
+              >
+                <Hash className="h-2.5 w-2.5" />
+                {tx.uniqueCode}
+              </Badge>
+            )}
+
+            <span className="text-[11px] text-muted-foreground">
+              {t('transactions.by')} {tx.createdBy.name}
+            </span>
 
             {canEdit && (
-              <div className="flex gap-1 opacity-70 transition-opacity group-hover:opacity-100">
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(tx)}>
+              <div className="ml-auto flex gap-1">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(tx)}>
                   <Pencil className="h-3.5 w-3.5" />
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                  className="h-7 w-7 text-muted-foreground hover:text-foreground"
                   onClick={() => onDeleteRequest(tx)}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -386,9 +932,48 @@ function TransactionCard({
             )}
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
+}
+
+// ============================================================================
+// Helper: kelompokkan transaksi per tanggal (menjaga urutan asal), lalu kasih
+// label yang manusiawi ("Hari ini" / "Kemarin" / tanggal lengkap)
+// ============================================================================
+
+type TransactionDateGroup = {
+  dateKey: string;
+  date: Date;
+  items: Transaction[];
+};
+
+function groupTransactionsByDate(transactions: Transaction[]): TransactionDateGroup[] {
+  const groups: TransactionDateGroup[] = [];
+
+  for (const tx of transactions) {
+    const date = new Date(tx.date);
+    const dateKey = toInputDate(date);
+    const lastGroup = groups[groups.length - 1];
+
+    if (lastGroup && lastGroup.dateKey === dateKey) {
+      lastGroup.items.push(tx);
+    } else {
+      groups.push({ dateKey, date, items: [tx] });
+    }
+  }
+
+  return groups;
+}
+
+function getDateGroupLabel(date: Date, t: TFunction): string {
+  const todayKey = toInputDate(new Date());
+  const yesterdayKey = toInputDate(new Date(Date.now() - 24 * 60 * 60 * 1000));
+  const dateKey = toInputDate(date);
+
+  if (dateKey === todayKey) return t('transactions.today');
+  if (dateKey === yesterdayKey) return t('transactions.yesterday');
+  return formatDate(date);
 }
 
 // ============================================================================
@@ -418,45 +1003,68 @@ function TransactionFormDialog({
   onSave: () => void;
   t: TFunction;
 }) {
-  const categoriesForType = categories.filter((c) => c.type === form.transactionType);
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? t('transactions.editTransactionTitle') : t('transactions.addTransactionTitle')}
+            {isEditing
+              ? t('transactions.editTransactionTitle')
+              : t('transactions.addTransactionTitle')}
           </DialogTitle>
+
           <DialogDescription>
-            {isEditing ? t('transactions.editTransactionDesc') : t('transactions.addTransactionDesc')}
+            {isEditing
+              ? t('transactions.editTransactionDesc')
+              : t('transactions.addTransactionDesc')}
           </DialogDescription>
         </DialogHeader>
 
         {formError && (
-          <div className="rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground animate-fade-in">
+          <div className="animate-fade-in rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground">
             {formError}
           </div>
         )}
 
         <div className="space-y-4">
-          {/* Toggle tipe: Income / Expense */}
+          {/* Toggle tipe */}
           <div>
             <Label>{t('transactions.type')}</Label>
+
             <div className="mt-1.5 flex gap-2">
               <Button
                 type="button"
-                variant={form.transactionType === 'INCOME' ? 'default' : 'outline'}
-                onClick={() => onFormChange({ transactionType: 'INCOME', categoryId: '' })}
+                variant={
+                  form.transactionType === 'INCOME'
+                    ? 'default'
+                    : 'outline'
+                }
+                onClick={() =>
+                  onFormChange({
+                    transactionType: 'INCOME',
+                    categoryId: '',
+                  })
+                }
                 className="flex-1 transition-all"
                 size="sm"
               >
                 <ArrowUpCircle className="mr-2 h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 {t('transactions.income')}
               </Button>
+
               <Button
                 type="button"
-                variant={form.transactionType === 'EXPENSE' ? 'default' : 'outline'}
-                onClick={() => onFormChange({ transactionType: 'EXPENSE', categoryId: '' })}
+                variant={
+                  form.transactionType === 'EXPENSE'
+                    ? 'default'
+                    : 'outline'
+                }
+                onClick={() =>
+                  onFormChange({
+                    transactionType: 'EXPENSE',
+                    categoryId: '',
+                  })
+                }
                 className="flex-1 transition-all"
                 size="sm"
               >
@@ -466,34 +1074,51 @@ function TransactionFormDialog({
             </div>
           </div>
 
+          {/* Date */}
           <div>
-            <Label htmlFor="tx-date">{t('transactions.date')}</Label>
+            <Label htmlFor="tx-date">
+              {t('transactions.date')}
+            </Label>
+
             <Input
               id="tx-date"
               type="date"
               value={form.date}
-              onChange={(e) => onFormChange({ date: e.target.value })}
+              onChange={(e) =>
+                onFormChange({
+                  date: e.target.value,
+                })
+              }
             />
           </div>
 
+          {/* Category */}
           <div>
-            <Label htmlFor="tx-category">{t('transactions.category')}</Label>
-            <Select value={form.categoryId} onValueChange={(v) => onFormChange({ categoryId: v })}>
-              <SelectTrigger id="tx-category">
-                <SelectValue placeholder={t('transactions.selectCategory')} />
-              </SelectTrigger>
-              <SelectContent>
-                {categoriesForType.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.categoryName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="tx-category">
+              {t('transactions.category')}
+            </Label>
+
+            <div className="mt-1.5">
+              <CategoryPicker
+                categories={categories}
+                type={form.transactionType}
+                value={form.categoryId}
+                onChange={(value) =>
+                  onFormChange({
+                    categoryId: value,
+                  })
+                }
+                t={t}
+              />
+            </div>
           </div>
 
+          {/* Amount */}
           <div>
-            <Label htmlFor="tx-amount">{t('transactions.amount')}</Label>
+            <Label htmlFor="tx-amount">
+              {t('transactions.amount')}
+            </Label>
+
             <Input
               id="tx-amount"
               type="number"
@@ -501,43 +1126,78 @@ function TransactionFormDialog({
               min="0"
               placeholder="0.00"
               value={form.amount}
-              onChange={(e) => onFormChange({ amount: e.target.value })}
+              onChange={(e) =>
+                onFormChange({
+                  amount: e.target.value,
+                })
+              }
               className="font-mono tabular-nums"
             />
           </div>
 
-          {/* Kode unik — opsional, biasanya buat nomor invoice/referensi manual */}
+          {/* Unique code */}
           <div>
-            <Label htmlFor="tx-unique-code">{t('transactions.uniqueCode')}</Label>
+            <Label htmlFor="tx-unique-code">
+              {t('transactions.uniqueCode')}
+            </Label>
+
             <Input
               id="tx-unique-code"
               type="text"
-              placeholder={t('transactions.uniqueCodePlaceholder')}
+              placeholder={t(
+                'transactions.uniqueCodePlaceholder',
+              )}
               value={form.uniqueCode}
-              onChange={(e) => onFormChange({ uniqueCode: e.target.value })}
+              onChange={(e) =>
+                onFormChange({
+                  uniqueCode: e.target.value,
+                })
+              }
               className="font-mono"
             />
           </div>
 
+          {/* Description */}
           <div>
-            <Label htmlFor="tx-desc">{t('transactions.description')}</Label>
+            <Label htmlFor="tx-desc">
+              {t('transactions.description')}
+            </Label>
+
             <Textarea
               id="tx-desc"
-              placeholder={t('transactions.descriptionPlaceholder')}
+              placeholder={t(
+                'transactions.descriptionPlaceholder',
+              )}
               value={form.description}
-              onChange={(e) => onFormChange({ description: e.target.value })}
+              onChange={(e) =>
+                onFormChange({
+                  description: e.target.value,
+                })
+              }
               rows={2}
             />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
             {t('common.cancel')}
           </Button>
-          <Button onClick={onSave} disabled={saving}>
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {isEditing ? t('transactions.saveChanges') : t('transactions.addTransactionAction')}
+
+          <Button
+            onClick={onSave}
+            disabled={saving}
+          >
+            {saving ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : null}
+
+            {isEditing
+              ? t('transactions.saveChanges')
+              : t('transactions.addTransactionAction')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -864,6 +1524,13 @@ export default function TransactionsPage() {
     safeCurrentPage * ITEMS_PER_PAGE,
   );
 
+  // Kelompokkan transaksi halaman ini per tanggal, biar tanggal tidak berulang
+  // di tiap baris dan alurnya lebih gampang diikuti.
+  const groupedTransactions = groupTransactionsByDate(paginatedTransactions);
+
+  const rangeStart = filteredTransactions.length === 0 ? 0 : (safeCurrentPage - 1) * ITEMS_PER_PAGE + 1;
+  const rangeEnd = Math.min(safeCurrentPage * ITEMS_PER_PAGE, filteredTransactions.length);
+
   // Handler filter/search yang juga reset halaman ke 1 (biar nggak nyangkut di halaman kosong)
   function handleFilterChange(setter: (v: string) => void) {
     return (v: string) => {
@@ -883,6 +1550,8 @@ export default function TransactionsPage() {
           </Button>
         )}
       </PageHeader>
+
+      {!loading && !error && <TransactionSummary transactions={filteredTransactions} t={t} />}
 
       <TransactionFilterBar
         categories={categories}
@@ -927,19 +1596,38 @@ export default function TransactionsPage() {
         </Card>
       ) : (
         <>
-          <div className="space-y-3">
-            {paginatedTransactions.map((tx, i) => (
-              <TransactionCard
-                key={tx.id}
-                tx={tx}
-                index={i}
-                canEdit={canEdit}
-                onEdit={openEditDialog}
-                onDeleteRequest={setDeleteTarget}
-                t={t}
-              />
-            ))}
-          </div>
+          <p className="mb-2 text-xs text-muted-foreground">
+            {t('transactions.showingRange', {
+              start: rangeStart,
+              end: rangeEnd,
+              total: filteredTransactions.length,
+            })}
+          </p>
+
+          <Card className="overflow-hidden">
+            <TransactionTableHeader t={t} />
+            <div>
+              {groupedTransactions.map((group) => (
+                <div key={group.dateKey}>
+                  <div className="bg-muted/40 px-4 py-1.5 text-xs font-semibold text-muted-foreground">
+                    {getDateGroupLabel(group.date, t)}
+                  </div>
+
+                  {group.items.map((tx, i) => (
+                    <TransactionRow
+                      key={tx.id}
+                      tx={tx}
+                      index={i}
+                      canEdit={canEdit}
+                      onEdit={openEditDialog}
+                      onDeleteRequest={setDeleteTarget}
+                      t={t}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </Card>
 
           <PaginationControls
             currentPage={safeCurrentPage}

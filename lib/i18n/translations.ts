@@ -69,7 +69,7 @@ export const translations = {
       saveFailed: 'Failed to save category.',
       deleteFailed: 'Failed to delete category.',
     },
-    transactions: {
+        transactions: {
       title: 'Transactions',
       subtitle: 'View, add, and manage financial transactions',
       addTransaction: 'Add Transaction',
@@ -81,6 +81,14 @@ export const translations = {
       allTypes: 'All types',
       income: 'Income',
       expense: 'Expense',
+
+      totalIncome: 'Total Income',
+      totalExpense: 'Total Expense',
+      netBalance: 'Net Balance',
+      today: 'Today',
+      yesterday: 'Yesterday',
+      showingRange: 'Showing range',
+
       fromDate: 'From date',
       toDate: 'To date',
       clear: 'Clear',
@@ -264,7 +272,7 @@ export const translations = {
       saveFailed: 'Gagal menyimpan kategori.',
       deleteFailed: 'Gagal menghapus kategori.',
     },
-    transactions: {
+        transactions: {
       title: 'Transaksi',
       subtitle: 'Lihat, tambah, dan kelola transaksi keuangan',
       addTransaction: 'Tambah Transaksi',
@@ -276,6 +284,14 @@ export const translations = {
       allTypes: 'Semua jenis',
       income: 'Pemasukan',
       expense: 'Pengeluaran',
+
+      totalIncome: 'Total Pemasukan',
+      totalExpense: 'Total Pengeluaran',
+      netBalance: 'Saldo Bersih',
+      today: 'Hari ini',
+      yesterday: 'Kemarin',
+      showingRange: 'Menampilkan rentang',
+
       fromDate: 'Dari tanggal',
       toDate: 'Sampai tanggal',
       clear: 'Hapus filter',

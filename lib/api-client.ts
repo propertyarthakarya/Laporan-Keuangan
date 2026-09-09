@@ -81,26 +81,51 @@ export const apiClient = {
     return res.categories;
   },
 
-  async createCategory(data: { categoryName: string; type: TransactionType }): Promise<Category> {
+  async createCategory(data: {
+    categoryName: string;
+    type: TransactionType;
+    parentId?: string | null;
+  }): Promise<Category> {
     const res = await request<{ category: Category }>('/categories', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        categoryName: data.categoryName,
+        type: data.type,
+        parentId: data.parentId ?? null,
+      }),
     });
+
     return res.category;
   },
 
-  async updateCategory(id: string, data: { categoryName: string; type: TransactionType }): Promise<Category> {
-    const res = await request<{ category: Category }>(`/categories/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(data),
-    });
+  async updateCategory(
+    id: string,
+    data: {
+      categoryName: string;
+      type: TransactionType;
+      parentId?: string | null;
+    },
+  ): Promise<Category> {
+    const res = await request<{ category: Category }>(
+      `/categories/${id}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          categoryName: data.categoryName,
+          type: data.type,
+          parentId: data.parentId ?? null,
+        }),
+      },
+    );
+
     return res.category;
   },
 
   async deleteCategory(id: string): Promise<void> {
-    await request(`/categories/${id}`, { method: 'DELETE' });
+    await request(`/categories/${id}`, {
+      method: 'DELETE',
+    });
   },
-
   // Transactions
   // NOTE: shape response ('transactions'/'transaction') masih asumsi,
   // perlu dikonfirmasi setelah lihat isi server/src/routes/transactions.ts

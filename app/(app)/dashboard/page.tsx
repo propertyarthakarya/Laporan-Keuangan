@@ -26,7 +26,11 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
-import type { DashboardSummary, ChartDataPoint } from '@/lib/types';
+import type {
+  DashboardSummary,
+  ChartDataPoint,
+  ChartCategoryBreakdown,
+} from '@/lib/types';
 import { cn } from '@/lib/utils';
 
 type Range = 'daily' | 'weekly' | 'monthly';
@@ -145,37 +149,204 @@ function LiveIndicator() {
   );
 }
 
+function DashboardChartTooltip({
+  active,
+  payload,
+  incomeLabel,
+  expenseLabel,
+}: {
+  active?: boolean;
+  payload?: Array<{
+    payload?: ChartDataPoint;
+  }>;
+  incomeLabel: string;
+  expenseLabel: string;
+}) {
+  if (!active || !payload?.length) {
+    return null;
+  }
+
+  const point = payload[0]?.payload;
+
+  if (!point) {
+    return null;
+  }
+
+  function renderCategories(
+    categories: ChartCategoryBreakdown[],
+  ) {
+    const groups = new Map<
+      string,
+      {
+        parentName: string;
+        total: number;
+        children: ChartCategoryBreakdown[];
+      }
+    >();
+
+    for (const category of categories) {
+      const groupId =
+        category.parentId ?? category.categoryId;
+
+      const parentName =
+        category.parentName ??
+        category.categoryName;
+
+      const existing = groups.get(groupId);
+
+      if (existing) {
+        existing.total += category.total;
+
+        if (category.parentId) {
+          existing.children.push(category);
+        }
+      } else {
+        groups.set(groupId, {
+          parentName,
+          total: category.total,
+          children: category.parentId
+            ? [category]
+            : [],
+        });
+      }
+    }
+
+    return Array.from(groups.values())
+      .sort((a, b) => b.total - a.total)
+      .map((group) => (
+        <div
+          key={group.parentName}
+          className="space-y-1.5"
+        >
+          {/* Parent */}
+          <div className="flex items-center justify-between gap-4">
+            <span className="truncate text-xs font-semibold text-foreground">
+              {group.parentName}
+            </span>
+
+            <span className="flex-shrink-0 font-mono text-xs font-semibold tabular-nums text-foreground">
+              {formatCurrency(group.total)}
+            </span>
+          </div>
+
+          {/* Subcategory */}
+          {group.children.length > 0 && (
+            <div className="ml-3 space-y-1 border-l border-border pl-3">
+              {group.children
+                .sort((a, b) => b.total - a.total)
+                .map((child) => (
+                  <div
+                    key={child.categoryId}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <span className="min-w-0 truncate text-[11px] text-muted-foreground">
+                      └ {child.categoryName}
+                    </span>
+
+                    <span className="flex-shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground">
+                      {formatCurrency(child.total)}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+      ));
+  }
+
+  return (
+    <div className="min-w-[280px] max-w-[340px] rounded-xl border bg-background p-3 shadow-xl">
+      {/* Tanggal */}
+      <p className="mb-3 text-xs font-semibold text-foreground">
+        {point.label}
+      </p>
+
+      {/* Income */}
+      {point.income > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-4 border-b border-border pb-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              {incomeLabel}
+            </span>
+
+            <span className="font-mono text-xs font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+              {formatCurrency(point.income)}
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            {renderCategories(
+              point.incomeCategories,
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Expense */}
+      {point.expense > 0 && (
+        <div
+          className={cn(
+            'space-y-2',
+            point.income > 0 &&
+              'mt-4 border-t border-border pt-4',
+          )}
+        >
+          <div className="flex items-center justify-between gap-4 border-b border-border pb-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              {expenseLabel}
+            </span>
+
+            <span className="font-mono text-xs font-bold tabular-nums text-rose-600 dark:text-rose-400">
+              {formatCurrency(point.expense)}
+            </span>
+          </div>
+
+          <div className="space-y-2">
+            {renderCategories(
+              point.expenseCategories,
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { user, getDashboardSummary, getDashboardCharts } = useAuth();
   const { t } = useLanguage();
   const [range, setRange] = useState<Range>('daily');
 
   // Summary — auto refetch tiap 10 detik, gantiin setInterval manual
-  const {
-    data: summary,
-    isLoading: loading,
-    refetch: refetchSummary,
-  } = useQuery<DashboardSummary>({
-    queryKey: ['dashboard-summary'],
-    queryFn: getDashboardSummary,
-    refetchInterval: 10000,
-  });
+const {
+  data: summary,
+  isLoading: loading,
+  isFetching: summaryFetching,
+  refetch: refetchSummary,
+} = useQuery<DashboardSummary>({
+  queryKey: ['dashboard-summary'],
+  queryFn: getDashboardSummary,
+  refetchInterval: 10000,
+});
 
   // Charts — key-nya include `range`, jadi otomatis refetch tiap ganti tab daily/weekly/monthly
-  const {
-    data: chartData = [],
-    isLoading: chartLoading,
-    refetch: refetchCharts,
-  } = useQuery<ChartDataPoint[]>({
-    queryKey: ['dashboard-charts', range],
-    queryFn: () => getDashboardCharts(range),
-    refetchInterval: 10000,
-  });
+const {
+  data: chartData = [],
+  isLoading: chartLoading,
+  isFetching: chartFetching,
+  refetch: refetchCharts,
+} = useQuery<ChartDataPoint[]>({
+  queryKey: ['dashboard-charts', range],
+  queryFn: () => getDashboardCharts(range),
+  refetchInterval: 10000,
+});
 
-  function handleRefresh() {
-    refetchSummary();
-    refetchCharts();
-  }
+async function handleRefresh() {
+  await Promise.all([
+    refetchSummary(),
+    refetchCharts(),
+  ]);
+}
 
   const profitPositive = (summary?.profitLoss ?? 0) >= 0;
 
@@ -233,8 +404,11 @@ export default function DashboardPage() {
   const xAxisInterval =
     chartData.length > 7 ? Math.ceil(chartData.length / 6) - 1 : 0;
 
-  const ranges: Range[] = ['daily', 'weekly', 'monthly'];
-  const activeRangeIndex = ranges.indexOf(range);
+ const ranges: Range[] = ['daily', 'weekly', 'monthly'];
+const activeRangeIndex = ranges.indexOf(range);
+
+  const refreshing =
+  summaryFetching || chartFetching;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
@@ -244,8 +418,19 @@ export default function DashboardPage() {
       >
         <div className="flex items-center gap-3">
           <LiveIndicator />
-          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={loading} className="w-full sm:w-auto">
-            <RefreshCw className={cn('mr-2 h-4 w-4', loading && 'animate-spin')} />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="w-full sm:w-auto"
+          >
+            <RefreshCw
+              className={cn(
+                'mr-2 h-4 w-4',
+                refreshing && 'animate-spin',
+              )}
+            />
             {t('common.refresh')}
           </Button>
         </div>
@@ -258,8 +443,8 @@ export default function DashboardPage() {
               <Card key={i}>
                 <CardContent className="p-3.5 sm:p-5">
                   <Skeleton className="h-4 w-20 sm:w-24" />
-                  <Skeleton className="mt-3 h-7 w-24 sm:h-8 sm:w-32" />
-                  <Skeleton className="mt-3 h-3 w-16" />
+                  <Skeleton className="mt-4 h-7 w-24 sm:h-8 sm:w-32" />
+                  <Skeleton className="mt-4 h-3 w-16" />
                 </CardContent>
               </Card>
             ))
@@ -296,10 +481,10 @@ export default function DashboardPage() {
                         </div>
                       )}
                     </div>
-                    <p className="mt-3 truncate text-xs font-medium text-muted-foreground sm:mt-4 sm:text-sm">
+                    <p className="mt-4 truncate text-xs font-medium text-muted-foreground sm:mt-4 sm:text-sm">
                       {card.label}
                     </p>
-                    <p className="mt-1 truncate font-mono text-lg font-bold tabular-nums tracking-tight sm:text-2xl">
+                    <p className="mt-2 truncate font-mono text-lg font-bold tabular-nums tracking-tight sm:text-2xl">
                       <AnimatedCurrency value={card.value} />
                     </p>
                   </CardContent>
@@ -309,7 +494,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Chart */}
-      <Card className="mt-4 sm:mt-6">
+      <Card className="mt-4 sm:mt-8">
         <CardHeader className="p-4 sm:p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -399,20 +584,22 @@ export default function DashboardPage() {
                   tickFormatter={(v) => formatCurrencyCompact(v)}
                 />
 
-                <ChartTooltip
-                  cursor={{ stroke: 'hsl(var(--border))', strokeWidth: 1, strokeDasharray: '4 4' }}
-                  content={
-                    <ChartTooltipContent
-                      formatter={(value, name) => (
-                        <div className="flex w-full items-center justify-between gap-4">
-                          <span className="text-muted-foreground">{name}</span>
-                          <span className="font-mono font-medium tabular-nums text-foreground">
-                            {formatCurrency(Number(value))}
-                          </span>
-                        </div>
-                      )}
-                    />
-                  }
+               <ChartTooltip 
+                  cursor={{ 
+                    stroke: 'hsl(var(--border))', 
+                    strokeWidth: 1, 
+                    strokeDasharray: '4 4', 
+                  }} 
+                  content={ 
+                    <DashboardChartTooltip 
+                      incomeLabel={t( 
+                        'dashboard.income', 
+                      )} 
+                      expenseLabel={t( 
+                        'dashboard.expenses', 
+                      )} 
+                    /> 
+                  } 
                 />
                 <ChartLegend content={<ChartLegendContent />} />
 

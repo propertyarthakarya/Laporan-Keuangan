@@ -185,7 +185,50 @@ function SummaryCard({
   );
 }
 
-type BreakdownCategory = { categoryId: string; categoryName: string; total: number; count: number };
+type BreakdownCategory = {
+  categoryId: string;
+  categoryName: string;
+  total: number;
+  count: number;
+  parentId: string | null;
+  parentName: string | null;
+};
+
+function groupBreakdownCategories(categories: BreakdownCategory[]) {
+  const groups = new Map<
+    string,
+    {
+      parentId: string;
+      parentName: string;
+      items: BreakdownCategory[];
+      total: number;
+      count: number;
+    }
+  >();
+
+  for (const category of categories) {
+    const parentId = category.parentId ?? category.categoryId;
+    const parentName = category.parentName ?? category.categoryName;
+
+    const existing = groups.get(parentId);
+
+    if (existing) {
+      existing.items.push(category);
+      existing.total += category.total;
+      existing.count += category.count;
+    } else {
+      groups.set(parentId, {
+        parentId,
+        parentName,
+        items: [category],
+        total: category.total,
+        count: category.count,
+      });
+    }
+  }
+
+  return Array.from(groups.values()).sort((a, b) => b.total - a.total);
+}
 
 function CategoryBreakdownCard({
   title,
@@ -210,6 +253,8 @@ function CategoryBreakdownCard({
   emptyLabel: string;
   transactionLabel: string;
 }) {
+  const groupedCategories = groupBreakdownCategories(categories);
+
   return (
     <Card>
       <CardHeader className="p-4 sm:p-6">
@@ -217,31 +262,107 @@ function CategoryBreakdownCard({
           <Icon className={cn('h-4 w-4 flex-shrink-0', iconClass)} />
           {title}
         </CardTitle>
+
         <CardDescription>{description}</CardDescription>
       </CardHeader>
+
       <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
         {categories.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">{emptyLabel}</p>
         ) : (
-          <div className="space-y-3">
-            {categories.map((c) => {
-              const pct = total > 0 ? (c.total / total) * 100 : 0;
+          <div className="space-y-4">
+            {groupedCategories.map((group) => {
+              const parentCategory = group.items.find((item) => item.categoryId === group.parentId);
+              const childCategories = group.items.filter((item) => item.parentId === group.parentId);
+              const hasChildren = childCategories.length > 0;
+              const directParentTotal = parentCategory && !parentCategory.parentId ? parentCategory.total : 0;
+
               return (
-                <div key={c.categoryId}>
-                  <div className="mb-1.5 flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium">{c.categoryName}</span>
-                    <span className="flex-shrink-0 font-mono text-sm font-semibold tabular-nums">{formatCurrency(c.total)}</span>
+                <div key={group.parentId} className="rounded-lg border border-border/60 p-3">
+                  {/* Parent */}
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-semibold">{group.parentName}</span>
+                    <span className="flex-shrink-0 font-mono text-sm font-semibold tabular-nums">
+                      {formatCurrency(group.total)}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
-                      <div className={cn('h-full rounded-full transition-all duration-500', barClass)} style={{ width: `${pct}%` }} />
+
+                  {/* Subcategories */}
+                  {hasChildren && (
+                    <div className="mt-2 space-y-2 border-l-2 border-border pl-3">
+                      {directParentTotal > 0 && parentCategory && (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-xs text-muted-foreground">{parentCategory.categoryName}</span>
+                          <span className="flex-shrink-0 font-mono text-xs font-medium tabular-nums">
+                            {formatCurrency(directParentTotal)}
+                          </span>
+                        </div>
+                      )}
+
+                      {childCategories
+                        .sort((a, b) => b.total - a.total)
+                        .map((item) => (
+                          <div key={item.categoryId}>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="truncate text-xs text-muted-foreground">{item.categoryName}</span>
+                              <span className="flex-shrink-0 font-mono text-xs font-medium tabular-nums">
+                                {formatCurrency(item.total)}
+                              </span>
+                            </div>
+
+                            <div className="mt-1 flex items-center gap-2">
+                              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
+                                <div
+                                  className={cn('h-full rounded-full', barClass)}
+                                  style={{
+                                    width: `${
+                                      group.total > 0 ? Math.min(100, (item.total / group.total) * 100) : 0
+                                    }%`,
+                                  }}
+                                />
+                              </div>
+
+                              <span className="w-9 flex-shrink-0 text-right text-[11px] text-muted-foreground">
+                                {group.total > 0 ? ((item.total / group.total) * 100).toFixed(0) : 0}%
+                              </span>
+                            </div>
+
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              {item.count} {transactionLabel}
+                            </p>
+                          </div>
+                        ))}
                     </div>
-                    <span className="w-9 flex-shrink-0 text-right text-xs text-muted-foreground">{pct.toFixed(0)}%</span>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{c.count} {transactionLabel}</p>
+                  )}
+
+                  {/* Parent tanpa subkategori */}
+                  {!hasChildren && (
+                    <div className="mt-2">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
+                          <div
+                            className={cn('h-full rounded-full', barClass)}
+                            style={{
+                              width: `${total > 0 ? Math.min(100, (group.total / total) * 100) : 0}%`,
+                            }}
+                          />
+                        </div>
+
+                        <span className="w-9 flex-shrink-0 text-right text-xs text-muted-foreground">
+                          {total > 0 ? ((group.total / total) * 100).toFixed(0) : 0}%
+                        </span>
+                      </div>
+
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {group.count} {transactionLabel}
+                      </p>
+                    </div>
+                  )}
                 </div>
               );
             })}
+
+            {/* Total */}
             <div className="mt-4 flex items-center justify-between border-t pt-3">
               <span className="font-semibold">{totalLabel}</span>
               <span className="font-mono font-bold tabular-nums">{formatCurrency(total)}</span>
@@ -434,6 +555,10 @@ export default function ReportsPage() {
       )
     : null;
 
+  function isActivePreset(preset: { start: Date; end: Date }) {
+    return isSameDay(rangeStart, preset.start) && isSameDay(rangeEnd, preset.end);
+  }
+
   // Label periode yang enak dibaca buat export: "Bulan ini (1 Agu 2026 - 31 Agu 2026)"
   // atau "Semua waktu" / "Kustom (...)" kalau rentangnya dipilih manual dari kalender.
   const activePresetLabel = presets.find((p) => isActivePreset(p))?.label;
@@ -443,10 +568,6 @@ export default function ReportsPage() {
     : activePresetLabel
       ? `${activePresetLabel} (${rangeText})`
       : `${t('reports.custom')} (${rangeText})`;
-
-  function isActivePreset(preset: { start: Date; end: Date }) {
-    return isSameDay(rangeStart, preset.start) && isSameDay(rangeEnd, preset.end);
-  }
 
   function applyPreset(preset: { start: Date; end: Date }) {
     setRangeStart(preset.start);
@@ -486,92 +607,981 @@ export default function ReportsPage() {
     }
   }
 
-  function exportExcel() {
-    const wb = XLSX.utils.book_new();
+function exportExcel() {
+  const wb = XLSX.utils.book_new();
 
-    const summaryRows = [
-      [t('reports.title')],
-      [t('reports.period').replace(':', ''), exportPeriodLabel],
-      [t('reports.generatedOn'), formatDateTimeID(new Date())],
+  const generatedAt = formatDateTimeID(new Date());
+
+  // ============================================================
+  // Helper: buat data breakdown dengan hierarchy parent -> child
+  // ============================================================
+  function buildBreakdownRows(
+    categories: BreakdownCategory[],
+    totalLabel: string,
+    total: number,
+  ) {
+    const groups = new Map<
+      string,
+      {
+        parent: BreakdownCategory;
+        children: BreakdownCategory[];
+        total: number;
+        count: number;
+      }
+    >();
+
+    for (const category of categories) {
+      const groupId =
+        category.parentId ?? category.categoryId;
+
+      const existing = groups.get(groupId);
+
+      if (!existing) {
+        groups.set(groupId, {
+          parent: category,
+          children: [],
+          total: 0,
+          count: 0,
+        });
+      }
+
+      const group = groups.get(groupId)!;
+
+      group.total += category.total;
+      group.count += category.count;
+
+      if (category.parentId) {
+        group.children.push(category);
+      } else {
+        group.parent = category;
+      }
+    }
+
+    const rows: (string | number)[][] = [];
+
+    for (const group of Array.from(groups.values()).sort(
+      (a, b) => b.total - a.total,
+    )) {
+      // Parent
+      rows.push([
+        group.parent.categoryName,
+        '',
+        group.total,
+        group.count,
+      ]);
+
+      // Children
+      for (const child of [...group.children].sort(
+        (a, b) => b.total - a.total,
+      )) {
+        rows.push([
+          '',
+          `↳ ${child.categoryName}`,
+          child.total,
+          child.count,
+        ]);
+      }
+
+      // Spasi antar parent
+      rows.push(['', '', '', '']);
+    }
+
+    // Hapus baris kosong terakhir
+    if (rows.length > 0) {
+      rows.pop();
+    }
+
+    // Total
+    rows.push([
+      totalLabel,
+      '',
+      total,
+      categories.reduce(
+        (sum, category) => sum + category.count,
+        0,
+      ),
+    ]);
+
+    return rows;
+  }
+
+  // ============================================================
+  // SUMMARY
+  // ============================================================
+  const summaryRows: (string | number)[][] = [
+    [t('reports.title')],
+    [
+      t('reports.period').replace(':', ''),
+      exportPeriodLabel,
+    ],
+    [t('reports.generatedOn'), generatedAt],
+    [],
+    [t('reports.totalIncome'), report?.totalIncome ?? 0],
+    [
+      t('reports.totalExpenses'),
+      report?.totalExpenses ?? 0,
+    ],
+    [
+      t('reports.netProfit'),
+      report?.netProfit ?? 0,
+    ],
+  ];
+
+  const summarySheet =
+    XLSX.utils.aoa_to_sheet(summaryRows);
+
+  // Lebar kolom
+  summarySheet['!cols'] = [
+    { wch: 24 },
+    { wch: 38 },
+  ];
+
+  // Gabungkan judul
+  summarySheet['!merges'] = [
+    {
+      s: { r: 0, c: 0 },
+      e: { r: 0, c: 1 },
+    },
+  ];
+
+  // Format angka menjadi ribuan
+  for (const cellRef of ['B5', 'B6', 'B7']) {
+    if (summarySheet[cellRef]) {
+      summarySheet[cellRef].z =
+        '#,##0';
+    }
+  }
+
+  XLSX.utils.book_append_sheet(
+    wb,
+    summarySheet,
+    'Summary',
+  );
+
+  // ============================================================
+  // BREAKDOWN SHEET
+  // ============================================================
+  function createBreakdownSheet(
+    categories: BreakdownCategory[],
+    sheetName: string,
+    title: string,
+    totalLabel: string,
+    total: number,
+  ) {
+    const rows: (string | number)[][] = [
+      [title],
+      [
+        t('reports.period').replace(':', ''),
+        exportPeriodLabel,
+      ],
       [],
-      [t('reports.totalIncome'), report?.totalIncome ?? 0],
-      [t('reports.totalExpenses'), report?.totalExpenses ?? 0],
-      [t('reports.netProfit'), report?.netProfit ?? 0],
+      [
+        t('reports.category'),
+        'Subcategory',
+        t('reports.amount'),
+        t('reports.transactions'),
+      ],
+      ...buildBreakdownRows(
+        categories,
+        totalLabel,
+        total,
+      ),
     ];
-    const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
-    summarySheet['!cols'] = [{ wch: 20 }, { wch: 30 }];
-    XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
 
-    const incomeRows = [
-      [t('reports.category'), t('reports.amount'), t('reports.transactions')],
-      ...(report?.incomeBreakdown.map((c) => [c.categoryName, c.total, c.count]) ?? []),
-      [t('reports.totalIncome'), report?.totalIncome ?? 0, ''],
+    const sheet =
+      XLSX.utils.aoa_to_sheet(rows);
+
+    sheet['!cols'] = [
+      { wch: 32 },
+      { wch: 32 },
+      { wch: 20 },
+      { wch: 18 },
     ];
-    const incomeSheet = XLSX.utils.aoa_to_sheet(incomeRows);
-    incomeSheet['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 18 }];
-    XLSX.utils.book_append_sheet(wb, incomeSheet, 'Income Breakdown');
 
-    const expenseRows = [
-      [t('reports.category'), t('reports.amount'), t('reports.transactions')],
-      ...(report?.expenseBreakdown.map((c) => [c.categoryName, c.total, c.count]) ?? []),
-      [t('reports.totalExpenses'), report?.totalExpenses ?? 0, ''],
+    // Merge title
+    sheet['!merges'] = [
+      {
+        s: { r: 0, c: 0 },
+        e: { r: 0, c: 3 },
+      },
     ];
-    const expenseSheet = XLSX.utils.aoa_to_sheet(expenseRows);
-    expenseSheet['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 18 }];
-    XLSX.utils.book_append_sheet(wb, expenseSheet, 'Expense Breakdown');
 
-    XLSX.writeFile(wb, 'profit-loss-report.xlsx');
+    // Format kolom Amount
+    for (
+      let row = 4;
+      row < rows.length;
+      row++
+    ) {
+      const amountCell =
+        sheet[`C${row + 1}`];
+
+      if (amountCell) {
+        amountCell.z = '#,##0';
+      }
+    }
+
+    // Auto filter
+    if (rows.length > 4) {
+      sheet['!autofilter'] = {
+        ref: `A4:D${rows.length}`,
+      };
+    }
+
+    XLSX.utils.book_append_sheet(
+      wb,
+      sheet,
+      sheetName,
+    );
   }
 
-  function exportPdf() {
-    const win = window.open('', '_blank');
-    if (!win) return;
+  // Income
+  createBreakdownSheet(
+    report?.incomeBreakdown ?? [],
+    'Income Breakdown',
+    t('reports.incomeBreakdown'),
+    t('reports.totalIncome'),
+    report?.totalIncome ?? 0,
+  );
 
-    const incomeRows = report?.incomeBreakdown
-      .map((c) => `<tr><td>${c.categoryName}</td><td style="text-align:right">${formatCurrency(c.total)}</td><td style="text-align:center">${c.count}</td></tr>`)
-      .join('') || '';
-    const expenseRows = report?.expenseBreakdown
-      .map((c) => `<tr><td>${c.categoryName}</td><td style="text-align:right">${formatCurrency(c.total)}</td><td style="text-align:center">${c.count}</td></tr>`)
-      .join('') || '';
+  // Expense
+  createBreakdownSheet(
+    report?.expenseBreakdown ?? [],
+    'Expense Breakdown',
+    t('reports.expenseBreakdown'),
+    t('reports.totalExpenses'),
+    report?.totalExpenses ?? 0,
+  );
 
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${t('reports.title')}</title>
-<style>
-  body{font-family:Arial,sans-serif;margin:40px;color:#1a1a1a}
-  h1{font-size:24px;margin-bottom:4px}
-  .meta{color:#666;margin-bottom:24px;font-size:13px;line-height:1.6}
-  .section{margin-bottom:24px}
-  h2{font-size:16px;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e5e5e5}
-  .summary{display:flex;gap:24px;margin-bottom:24px}
-  .summary div{padding:12px 20px;background:#f5f5f5;border-radius:8px}
-  .summary .label{font-size:11px;color:#666;text-transform:uppercase}
-  .summary .value{font-size:20px;font-weight:bold;margin-top:4px}
-  table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px}
-  th{text-align:left;padding:8px;border-bottom:2px solid #ddd;background:#fafafa}
-  td{padding:8px;border-bottom:1px solid #eee}
-  .total-row{font-weight:bold;background:#f9f9f9}
-  @media print{.no-print{display:none}}
-</style></head><body>
-<h1>${t('reports.title')}</h1>
-<div class="meta">${t('reports.generatedOn')} ${formatDateTimeID(new Date())}<br/>${t('reports.period')} ${exportPeriodLabel}</div>
-<div class="summary">
-  <div><div class="label">${t('reports.totalIncome')}</div><div class="value">${formatCurrency(report?.totalIncome ?? 0)}</div></div>
-  <div><div class="label">${t('reports.totalExpenses')}</div><div class="value">${formatCurrency(report?.totalExpenses ?? 0)}</div></div>
-  <div><div class="label">${t('reports.netProfit')}</div><div class="value">${formatCurrency(report?.netProfit ?? 0)}</div></div>
-</div>
-<div class="section">
-  <h2>${t('reports.incomeBreakdown')}</h2>
-  <table><thead><tr><th>${t('reports.category')}</th><th style="text-align:right">${t('reports.amount')}</th><th style="text-align:center">${t('reports.transactions')}</th></tr></thead>
-  <tbody>${incomeRows}<tr class="total-row"><td>${t('reports.totalIncome')}</td><td style="text-align:right">${formatCurrency(report?.totalIncome ?? 0)}</td><td></td></tr></tbody></table>
-</div>
-<div class="section">
-  <h2>${t('reports.expenseBreakdown')}</h2>
-  <table><thead><tr><th>${t('reports.category')}</th><th style="text-align:right">${t('reports.amount')}</th><th style="text-align:center">${t('reports.transactions')}</th></tr></thead>
-  <tbody>${expenseRows}<tr class="total-row"><td>${t('reports.totalExpenses')}</td><td style="text-align:right">${formatCurrency(report?.totalExpenses ?? 0)}</td><td></td></tr></tbody></table>
-</div>
-<div class="no-print" style="margin-top:24px"><button onclick="window.print()" style="padding:10px 20px;font-size:14px;cursor:pointer">${t('reports.printSaveAsPdf')}</button></div>
-</body></html>`);
-    win.document.close();
+  // ============================================================
+  // EXPORT
+  // ============================================================
+  XLSX.writeFile(
+    wb,
+    'profit-loss-report.xlsx',
+  );
+}
+
+function exportPdf() {
+  const win = window.open('', '_blank');
+
+  if (!win) return;
+
+  function escapeHtml(value: string) {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
+
+  function buildBreakdownRows(
+    categories: BreakdownCategory[],
+  ) {
+    const groups = new Map<
+      string,
+      {
+        parent: BreakdownCategory;
+        children: BreakdownCategory[];
+        total: number;
+        count: number;
+      }
+    >();
+
+    for (const category of categories) {
+      const groupId =
+        category.parentId ?? category.categoryId;
+
+      const existing = groups.get(groupId);
+
+      if (!existing) {
+        groups.set(groupId, {
+          parent: category,
+          children: [],
+          total: 0,
+          count: 0,
+        });
+      }
+
+      const group = groups.get(groupId)!;
+
+      group.total += category.total;
+      group.count += category.count;
+
+      if (category.parentId) {
+        group.children.push(category);
+      } else {
+        group.parent = category;
+      }
+    }
+
+    return Array.from(groups.values())
+      .sort((a, b) => b.total - a.total)
+      .map((group) => {
+        const parentName =
+          group.parent.categoryName;
+
+        const parentRow = `
+          <tr class="parent-row">
+            <td class="parent-cell">
+              ${escapeHtml(parentName)}
+            </td>
+
+            <td class="subcategory-cell">
+            </td>
+
+            <td class="amount-cell">
+              ${formatCurrency(group.total)}
+            </td>
+
+            <td class="count-cell">
+              ${group.count}
+            </td>
+          </tr>
+        `;
+
+        const childRows = [
+          ...group.children,
+        ]
+          .sort((a, b) => b.total - a.total)
+          .map(
+            (child) => `
+              <tr class="child-row">
+                <td class="parent-cell">
+                  ${escapeHtml(
+                    group.parent.categoryName,
+                  )}
+                </td>
+
+                <td class="subcategory-cell">
+                  <span class="tree-line">└</span>
+                  ${escapeHtml(
+                    child.categoryName,
+                  )}
+                </td>
+
+                <td class="amount-cell">
+                  ${formatCurrency(
+                    child.total,
+                  )}
+                </td>
+
+                <td class="count-cell">
+                  ${child.count}
+                </td>
+              </tr>
+            `,
+          )
+          .join('');
+
+        return parentRow + childRows;
+      })
+      .join('');
+  }
+
+  const incomeRows = buildBreakdownRows(
+    report?.incomeBreakdown ?? [],
+  );
+
+  const expenseRows = buildBreakdownRows(
+    report?.expenseBreakdown ?? [],
+  );
+
+  const incomeTransactionCount =
+    report?.incomeBreakdown.reduce(
+      (sum, item) => sum + item.count,
+      0,
+    ) ?? 0;
+
+  const expenseTransactionCount =
+    report?.expenseBreakdown.reduce(
+      (sum, item) => sum + item.count,
+      0,
+    ) ?? 0;
+
+  win.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+
+        <title>
+          ${escapeHtml(t('reports.title'))}
+        </title>
+
+        <style>
+          * {
+            box-sizing: border-box;
+          }
+
+          @page {
+            size: A4;
+            margin: 18mm 14mm;
+          }
+
+          body {
+            font-family:
+              Arial,
+              Helvetica,
+              sans-serif;
+
+            color: #1f2937;
+            background: #ffffff;
+
+            margin: 0;
+            font-size: 12px;
+            line-height: 1.45;
+          }
+
+          .report {
+            width: 100%;
+          }
+
+          .header {
+            margin-bottom: 24px;
+          }
+
+          .title {
+            margin: 0;
+            font-size: 25px;
+            line-height: 1.2;
+            font-weight: 700;
+            color: #111827;
+          }
+
+          .subtitle {
+            margin-top: 5px;
+            color: #6b7280;
+            font-size: 12px;
+          }
+
+          .meta {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 14px;
+          }
+
+          .meta-box {
+            padding: 10px 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #f9fafb;
+          }
+
+          .meta-label {
+            display: block;
+            font-size: 10px;
+            color: #6b7280;
+            margin-bottom: 2px;
+          }
+
+          .meta-value {
+            font-size: 12px;
+            font-weight: 600;
+            color: #111827;
+          }
+
+          .summary {
+            margin-bottom: 28px;
+          }
+
+          .summary-title {
+            margin: 0 0 10px;
+            font-size: 14px;
+            font-weight: 700;
+            color: #111827;
+          }
+
+          .summary-grid {
+            display: grid;
+            grid-template-columns:
+              repeat(3, 1fr);
+
+            gap: 10px;
+          }
+
+          .summary-card {
+            padding: 13px 14px;
+            border:
+              1px solid
+              #e5e7eb;
+
+            border-radius: 9px;
+            background: #ffffff;
+          }
+
+          .summary-card.income {
+            border-top: 3px solid #10b981;
+          }
+
+          .summary-card.expense {
+            border-top: 3px solid #f43f5e;
+          }
+
+          .summary-card.profit {
+            border-top: 3px solid #f59e0b;
+          }
+
+          .summary-label {
+            font-size: 10px;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+          }
+
+          .summary-value {
+            margin-top: 5px;
+            font-size: 18px;
+            font-weight: 700;
+            color: #111827;
+          }
+
+          .section {
+            margin-bottom: 26px;
+            page-break-inside: avoid;
+          }
+
+          .section-title {
+            margin: 0 0 4px;
+            font-size: 16px;
+            font-weight: 700;
+            color: #111827;
+          }
+
+          .section-description {
+            margin-bottom: 10px;
+            color: #6b7280;
+            font-size: 11px;
+          }
+
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+          }
+
+          thead {
+            display: table-header-group;
+          }
+
+          th {
+            padding: 9px 8px;
+            text-align: left;
+
+            font-size: 10px;
+            font-weight: 700;
+
+            color: #374151;
+            background: #f3f4f6;
+
+            border-top: 1px solid #d1d5db;
+            border-bottom: 2px solid #d1d5db;
+          }
+
+          td {
+            padding: 8px;
+            border-bottom: 1px solid #e5e7eb;
+            vertical-align: middle;
+          }
+
+          .parent-row {
+            background: #f9fafb;
+            font-weight: 700;
+          }
+
+          .parent-row td {
+            border-bottom:
+              1px solid
+              #d1d5db;
+          }
+
+          .child-row {
+            background: #ffffff;
+          }
+
+          .child-row td {
+            color: #4b5563;
+          }
+
+          .parent-cell {
+            width: 30%;
+          }
+
+          .subcategory-cell {
+            width: 35%;
+          }
+
+          .amount-cell {
+            width: 22%;
+            text-align: right;
+            white-space: nowrap;
+            font-family:
+              'Courier New',
+              monospace;
+            font-weight: 600;
+          }
+
+          .count-cell {
+            width: 13%;
+            text-align: center;
+          }
+
+          .tree-line {
+            display: inline-block;
+            width: 18px;
+            color: #9ca3af;
+            font-weight: 700;
+          }
+
+          .total-row {
+            background: #f3f4f6;
+            font-weight: 700;
+          }
+
+          .total-row td {
+            border-top: 2px solid #d1d5db;
+            border-bottom: 0;
+          }
+
+          .footer {
+            margin-top: 30px;
+            padding-top: 10px;
+            border-top: 1px solid #e5e7eb;
+            color: #9ca3af;
+            font-size: 10px;
+          }
+
+          .no-print {
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid #e5e7eb;
+          }
+
+          .print-button {
+            padding: 10px 18px;
+            border: 0;
+            border-radius: 7px;
+            background: #111827;
+            color: white;
+            cursor: pointer;
+            font-size: 13px;
+          }
+
+          @media print {
+            .no-print {
+              display: none;
+            }
+
+            .section {
+              page-break-inside: avoid;
+            }
+
+            .parent-row,
+            .child-row {
+              page-break-inside: avoid;
+            }
+          }
+        </style>
+      </head>
+
+      <body>
+        <div class="report">
+
+          <div class="header">
+            <h1 class="title">
+              ${escapeHtml(
+                t('reports.title'),
+              )}
+            </h1>
+
+            <div class="subtitle">
+              ${escapeHtml(
+                t(
+                  'reports.subtitle',
+                ),
+              )}
+            </div>
+
+            <div class="meta">
+              <div class="meta-box">
+                <span class="meta-label">
+                  ${escapeHtml(
+                    t('reports.period'),
+                  )}
+                </span>
+
+                <span class="meta-value">
+                  ${escapeHtml(
+                    exportPeriodLabel,
+                  )}
+                </span>
+              </div>
+
+              <div class="meta-box">
+                <span class="meta-label">
+                  ${escapeHtml(
+                    t(
+                      'reports.generatedOn',
+                    ),
+                  )}
+                </span>
+
+                <span class="meta-value">
+                  ${escapeHtml(
+                    formatDateTimeID(
+                      new Date(),
+                    ),
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="summary">
+            <h2 class="summary-title">
+              ${escapeHtml(
+                t('reports.title'),
+              )}
+            </h2>
+
+            <div class="summary-grid">
+
+              <div class="summary-card income">
+                <div class="summary-label">
+                  ${escapeHtml(
+                    t(
+                      'reports.totalIncome',
+                    ),
+                  )}
+                </div>
+
+                <div class="summary-value">
+                  ${formatCurrency(
+                    report?.totalIncome ??
+                      0,
+                  )}
+                </div>
+              </div>
+
+              <div class="summary-card expense">
+                <div class="summary-label">
+                  ${escapeHtml(
+                    t(
+                      'reports.totalExpenses',
+                    ),
+                  )}
+                </div>
+
+                <div class="summary-value">
+                  ${formatCurrency(
+                    report?.totalExpenses ??
+                      0,
+                  )}
+                </div>
+              </div>
+
+              <div class="summary-card profit">
+                <div class="summary-label">
+                  ${escapeHtml(
+                    t(
+                      'reports.netProfit',
+                    ),
+                  )}
+                </div>
+
+                <div class="summary-value">
+                  ${formatCurrency(
+                    report?.netProfit ??
+                      0,
+                  )}
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <div class="section">
+
+            <h2 class="section-title">
+              ${escapeHtml(
+                t(
+                  'reports.incomeBreakdown',
+                ),
+              )}
+            </h2>
+
+            <div class="section-description">
+              ${escapeHtml(
+                t(
+                  'reports.revenueByCategory',
+                ),
+              )}
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>
+                    Parent Category
+                  </th>
+
+                  <th>
+                    Subcategory
+                  </th>
+
+                  <th style="text-align:right">
+                    ${escapeHtml(
+                      t(
+                        'reports.amount',
+                      ),
+                    )}
+                  </th>
+
+                  <th style="text-align:center">
+                    ${escapeHtml(
+                      t(
+                        'reports.transactions',
+                      ),
+                    )}
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                ${incomeRows}
+
+                <tr class="total-row">
+                  <td colspan="2">
+                    ${escapeHtml(
+                      t(
+                        'reports.totalIncome',
+                      ),
+                    )}
+                  </td>
+
+                  <td class="amount-cell">
+                    ${formatCurrency(
+                      report?.totalIncome ??
+                        0,
+                    )}
+                  </td>
+
+                  <td class="count-cell">
+                    ${incomeTransactionCount}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+          </div>
+
+          <div class="section">
+
+            <h2 class="section-title">
+              ${escapeHtml(
+                t(
+                  'reports.expenseBreakdown',
+                ),
+              )}
+            </h2>
+
+            <div class="section-description">
+              ${escapeHtml(
+                t(
+                  'reports.costsByCategory',
+                ),
+              )}
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>
+                    Parent Category
+                  </th>
+
+                  <th>
+                    Subcategory
+                  </th>
+
+                  <th style="text-align:right">
+                    ${escapeHtml(
+                      t(
+                        'reports.amount',
+                      ),
+                    )}
+                  </th>
+
+                  <th style="text-align:center">
+                    ${escapeHtml(
+                      t(
+                        'reports.transactions',
+                      ),
+                    )}
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                ${expenseRows}
+
+                <tr class="total-row">
+                  <td colspan="2">
+                    ${escapeHtml(
+                      t(
+                        'reports.totalExpenses',
+                      ),
+                    )}
+                  </td>
+
+                  <td class="amount-cell">
+                    ${formatCurrency(
+                      report?.totalExpenses ??
+                        0,
+                    )}
+                  </td>
+
+                  <td class="count-cell">
+                    ${expenseTransactionCount}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+          </div>
+
+          <div class="footer">
+            ${escapeHtml(
+              t('reports.generatedOn'),
+            )}
+            ${escapeHtml(
+              formatDateTimeID(
+                new Date(),
+              ),
+            )}
+          </div>
+
+          <div class="no-print">
+            <button
+              class="print-button"
+              onclick="window.print()"
+            >
+              ${escapeHtml(
+                t(
+                  'reports.printSaveAsPdf',
+                ),
+              )}
+            </button>
+          </div>
+
+        </div>
+      </body>
+    </html>
+  `);
+
+  win.document.close();
+}
 
   const summaryCards = report
     ? [

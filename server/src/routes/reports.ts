@@ -23,14 +23,49 @@ router.get('/profit-loss', async (req: AuthenticatedRequest, res: Response, next
     const transactions = await prisma.transaction.findMany({
       where,
       include: {
-        category: { select: { id: true, categoryName: true, type: true } },
+      category: {
+        select: {
+          id: true,
+          categoryName: true,
+          type: true,
+          parentId: true,
+          parent: {
+            select: {
+              id: true,
+              categoryName: true,
+              type: true,
+            },
+          },
+        },
       },
+    },
       orderBy: { date: 'asc' },
     });
 
     // Group by category
-    const incomeByCategory: Record<string, { categoryId: string; categoryName: string; total: number; count: number }> = {};
-    const expenseByCategory: Record<string, { categoryId: string; categoryName: string; total: number; count: number }> = {};
+    const incomeByCategory: Record<
+  string,
+  {
+    categoryId: string;
+    categoryName: string;
+    total: number;
+    count: number;
+    parentId: string | null;
+    parentName: string | null;
+  }
+> = {};
+
+const expenseByCategory: Record<
+  string,
+  {
+    categoryId: string;
+    categoryName: string;
+    total: number;
+    count: number;
+    parentId: string | null;
+    parentName: string | null;
+  }
+> = {};
 
     let totalIncome = 0;
     let totalExpenses = 0;
@@ -40,10 +75,17 @@ router.get('/profit-loss', async (req: AuthenticatedRequest, res: Response, next
       const cat = t.category;
       const map = t.transactionType === 'INCOME' ? incomeByCategory : expenseByCategory;
 
-      if (!map[cat.id]) {
-        map[cat.id] = { categoryId: cat.id, categoryName: cat.categoryName, total: 0, count: 0 };
-      }
-      map[cat.id].total += amt;
+        if (!map[cat.id]) {
+          map[cat.id] = {
+            categoryId: cat.id,
+            categoryName: cat.categoryName,
+            total: 0,
+            count: 0,
+            parentId: cat.parent?.id ?? null,
+            parentName: cat.parent?.categoryName ?? null,
+          };
+        }
+              map[cat.id].total += amt;
       map[cat.id].count += 1;
 
       if (t.transactionType === 'INCOME') totalIncome += amt;

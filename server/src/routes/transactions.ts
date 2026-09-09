@@ -34,8 +34,22 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next) => {
 
     const transactions = await prisma.transaction.findMany({
       where,
-      include: {
-        category: { select: { id: true, categoryName: true, type: true } },
+    include: {
+        category: {
+          select: {
+            id: true,
+            categoryName: true,
+            type: true,
+            parentId: true,
+            parent: {
+              select: {
+                id: true,
+                categoryName: true,
+                type: true,
+              },
+            },
+          },
+        },
         createdBy: { select: { id: true, name: true } },
       },
       orderBy: { date: 'desc' },
@@ -78,9 +92,23 @@ router.post('/', requireRoles('ADMIN', 'STAFF'), async (req: AuthenticatedReques
         createdById: req.user!.id,
       },
       include: {
-        category: { select: { id: true, categoryName: true, type: true } },
-        createdBy: { select: { id: true, name: true } },
+      category: {
+        select: {
+          id: true,
+          categoryName: true,
+          type: true,
+          parentId: true,
+          parent: {
+            select: {
+              id: true,
+              categoryName: true,
+              type: true,
+            },
+          },
+        },
       },
+      createdBy: { select: { id: true, name: true } },
+    },
     });
 
     return res.status(201).json({ transaction: { ...transaction, amount: Number(transaction.amount) } });
@@ -120,10 +148,24 @@ router.put('/:id', requireRoles('ADMIN', 'STAFF'), async (req: AuthenticatedRequ
         transactionType: data.transactionType,
         uniqueCode: data.uniqueCode || null,
       },
-      include: {
-        category: { select: { id: true, categoryName: true, type: true } },
-        createdBy: { select: { id: true, name: true } },
+     include: {
+      category: {
+        select: {
+          id: true,
+          categoryName: true,
+          type: true,
+          parentId: true,
+          parent: {
+            select: {
+              id: true,
+              categoryName: true,
+              type: true,
+            },
+          },
+        },
       },
+      createdBy: { select: { id: true, name: true } },
+    },
     });
 
     return res.json({ transaction: { ...transaction, amount: Number(transaction.amount) } });

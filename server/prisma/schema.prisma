@@ -43,10 +43,16 @@ model Category {
   id           String          @id @default(uuid())
   categoryName String
   type         TransactionType
+
+  parentId     String?
+  parent       Category?       @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children     Category[]      @relation("CategoryHierarchy")
+
   createdAt    DateTime        @default(now())
   transactions Transaction[]
 
   @@unique([categoryName, type])
+  @@index([parentId])
 }
 
 model Transaction {

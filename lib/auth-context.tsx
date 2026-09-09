@@ -12,9 +12,20 @@ interface AuthContextValue {
   logout: () => void;
 
   getCategories: () => Promise<Category[]>;
-  createCategory: (data: { categoryName: string; type: TransactionType }) => Promise<Category>;
-  updateCategory: (id: string, data: { categoryName: string; type: TransactionType }) => Promise<Category>;
-  deleteCategory: (id: string) => Promise<void>;
+createCategory: (data: {
+  categoryName: string;
+  type: TransactionType;
+  parentId?: string | null;
+}) => Promise<Category>;
+updateCategory: (
+  id: string,
+  data: {
+    categoryName: string;
+    type: TransactionType;
+    parentId?: string | null;
+  },
+) => Promise<Category>;
+deleteCategory: (id: string) => Promise<void>;
 
   getTransactions: (filters?: { startDate?: string; endDate?: string; categoryId?: string; transactionType?: TransactionType }) => Promise<Transaction[]>;
   createTransaction: (data: { date: string; categoryId: string; description?: string | null; amount: number; transactionType: TransactionType }) => Promise<Transaction>;
