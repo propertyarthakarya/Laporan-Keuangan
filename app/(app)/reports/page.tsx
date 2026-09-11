@@ -32,15 +32,11 @@ import {
   Check,
 } from 'lucide-react';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
+  PieChart as RePieChart,
+  Pie,
   Tooltip,
   ResponsiveContainer,
   Cell,
-  LabelList,
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
@@ -69,9 +65,6 @@ function isSameDay(a: Date | null, b: Date | null) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-// Date.getDay(): 0 = Minggu ... 6 = Sabtu. Fungsi ini mengubahnya jadi
-// jarak (dalam hari) ke hari Senin terdekat sebelumnya, sehingga "awal
-// minggu" selalu jatuh di hari Senin.
 function mondayOffset(date: Date) {
   const day = date.getDay();
   return day === 0 ? 6 : day - 1;
@@ -91,7 +84,6 @@ function formatRangeLabel(start: Date | null, end: Date | null, allTimeLabel: st
   return allTimeLabel;
 }
 
-// Dipakai di export PDF/Excel: tanggal lengkap + jam:menit:detik, format Indonesia
 function formatDateTimeID(d: Date) {
   const day = d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const time = d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -106,19 +98,14 @@ const PRESET_ICONS: Record<string, React.ElementType> = {
   year: CalendarRange,
 };
 
-// Rentang tanggal siap pakai buat pintasan filter periode
 function getPresetRanges(t: ReturnType<typeof useLanguage>['t']) {
   const today = new Date();
   const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-
   const startOfWeek = startOfWeekMonday(startOfToday);
-
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
   const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
   const startOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
   const endOfLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
-
   const startOfYear = new Date(today.getFullYear(), 0, 1);
   const endOfYear = new Date(today.getFullYear(), 11, 31);
 
@@ -135,7 +122,6 @@ function getPresetRanges(t: ReturnType<typeof useLanguage>['t']) {
 /*  Small presentational components                                    */
 /* ------------------------------------------------------------------ */
 
-// Lucide belum punya simbol Rupiah, jadi cukup teks "Rp" tipis, senada sama ikon lucide lain
 function RupiahIcon({ className }: { className?: string }) {
   return (
     <span className={cn('font-bold leading-none', className)} style={{ fontSize: '0.95em' }}>
@@ -146,10 +132,25 @@ function RupiahIcon({ className }: { className?: string }) {
 
 type CardTone = 'emerald' | 'rose' | 'amber';
 
-const toneStyles: Record<CardTone, { bg: string; text: string }> = {
-  emerald: { bg: 'bg-emerald-50 dark:bg-emerald-950/40', text: 'text-emerald-600 dark:text-emerald-400' },
-  rose: { bg: 'bg-rose-50 dark:bg-rose-950/40', text: 'text-rose-600 dark:text-rose-400' },
-  amber: { bg: 'bg-amber-50 dark:bg-amber-950/40', text: 'text-amber-600 dark:text-amber-400' },
+const toneStyles: Record<CardTone, { bg: string; text: string; ring: string; bar: string }> = {
+  emerald: {
+    bg: 'bg-emerald-50 dark:bg-emerald-950/40',
+    text: 'text-emerald-600 dark:text-emerald-400',
+    ring: 'ring-emerald-500/10',
+    bar: 'from-emerald-500 to-emerald-400',
+  },
+  rose: {
+    bg: 'bg-rose-50 dark:bg-rose-950/40',
+    text: 'text-rose-600 dark:text-rose-400',
+    ring: 'ring-rose-500/10',
+    bar: 'from-rose-500 to-rose-400',
+  },
+  amber: {
+    bg: 'bg-amber-50 dark:bg-amber-950/40',
+    text: 'text-amber-600 dark:text-amber-400',
+    ring: 'ring-amber-500/10',
+    bar: 'from-amber-500 to-amber-400',
+  },
 };
 
 function SummaryCard({
@@ -158,6 +159,8 @@ function SummaryCard({
   icon: Icon,
   tone,
   trendUp,
+  barPercent,
+  badgePercent,
   delay,
 }: {
   label: string;
@@ -165,21 +168,40 @@ function SummaryCard({
   icon: React.ElementType;
   tone: CardTone;
   trendUp: boolean;
+  barPercent: number;
+  badgePercent: number | null;
   delay: number;
 }) {
   const style = toneStyles[tone];
   const TrendIcon = trendUp ? ArrowUpRight : ArrowDownRight;
   return (
-    <Card className="animate-fade-in transition-shadow hover:shadow-md" style={{ animationDelay: `${delay}ms` }}>
+    <Card
+      className={cn(
+        'animate-fade-in overflow-hidden border-border/60 shadow-sm ring-1 transition-all hover:-translate-y-0.5 hover:shadow-md',
+        style.ring,
+      )}
+      style={{ animationDelay: `${delay}ms` }}
+    >
       <CardContent className="p-4 sm:p-5">
         <div className="flex items-start justify-between">
           <div className={cn('flex h-10 w-10 items-center justify-center rounded-2xl', style.bg)}>
             <Icon className={cn('h-5 w-5', style.text)} />
           </div>
-          <TrendIcon className={cn('h-4 w-4', style.text)} />
+          {badgePercent !== null && (
+            <span className={cn('flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-medium', style.bg, style.text)}>
+              <TrendIcon className="h-3 w-3" />
+              {Math.round(badgePercent)}%
+            </span>
+          )}
         </div>
         <p className="mt-3 text-sm text-muted-foreground">{label}</p>
-        <p className="mt-0.5 font-mono text-lg font-bold tabular-nums sm:text-xl">{formatCurrency(value)}</p>
+        <p className="mt-0.5 font-mono text-lg font-bold tabular-nums tracking-tight sm:text-2xl">{formatCurrency(value)}</p>
+        <div className="mt-3 h-1 overflow-hidden rounded-full bg-secondary">
+          <div
+            className={cn('h-full rounded-full bg-gradient-to-r', style.bar)}
+            style={{ width: `${Math.min(100, Math.max(0, barPercent))}%` }}
+          />
+        </div>
       </CardContent>
     </Card>
   );
@@ -230,11 +252,102 @@ function groupBreakdownCategories(categories: BreakdownCategory[]) {
   return Array.from(groups.values()).sort((a, b) => b.total - a.total);
 }
 
+// Ringkas jadi maksimal `limit` slice per parent kategori + sisanya digabung "Lainnya",
+// supaya donut tetap enak dibaca walau kategori & subkategorinya banyak.
+function buildDonutSlices(categories: BreakdownCategory[], limit: number, othersLabel: string) {
+  const grouped = groupBreakdownCategories(categories);
+  const top = grouped.slice(0, limit).map((g) => ({ name: g.parentName, value: g.total }));
+  const rest = grouped.slice(limit).reduce((sum, g) => sum + g.total, 0);
+  if (rest > 0) top.push({ name: othersLabel, value: rest });
+  return top;
+}
+
+const INCOME_DONUT_COLORS = ['#047857', '#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#d1d5db'];
+const EXPENSE_DONUT_COLORS = ['#be123c', '#f43f5e', '#fb7185', '#fda4af', '#fecdd3', '#d1d5db'];
+
+function CategoryDonutChart({
+  title,
+  total,
+  totalLabel,
+  slices,
+  colors,
+  emptyLabel,
+}: {
+  title: string;
+  total: number;
+  totalLabel: string;
+  slices: { name: string; value: number }[];
+  colors: string[];
+  emptyLabel: string;
+}) {
+  if (slices.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-2 py-10 text-center">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
+          <PieChart className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <p className="text-sm text-muted-foreground">{emptyLabel}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="relative">
+        <ResponsiveContainer width="100%" height={200}>
+          <RePieChart>
+            <Pie
+              data={slices}
+              dataKey="value"
+              nameKey="name"
+              innerRadius={58}
+              outerRadius={86}
+              paddingAngle={slices.length > 1 ? 2 : 0}
+              strokeWidth={0}
+              animationDuration={500}
+            >
+              {slices.map((_, i) => (
+                <Cell key={i} fill={colors[i % colors.length]} />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(value) => formatCurrency(Number(value))}
+              contentStyle={{
+                backgroundColor: 'hsl(var(--card))',
+                border: '1px solid hsl(var(--border))',
+                borderRadius: '8px',
+                fontSize: '13px',
+              }}
+            />
+          </RePieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-[11px] text-muted-foreground">{totalLabel}</span>
+          <span className="font-mono text-sm font-bold tabular-nums">{formatCurrencyCompact(total)}</span>
+        </div>
+      </div>
+
+      <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+        {slices.map((slice, i) => (
+          <div key={slice.name} className="flex min-w-0 items-center gap-1.5 text-xs">
+            <span className="h-2 w-2 flex-shrink-0 rounded-full" style={{ backgroundColor: colors[i % colors.length] }} />
+            <span className="min-w-0 flex-1 truncate text-muted-foreground">{slice.name}</span>
+            <span className="flex-shrink-0 font-mono tabular-nums text-foreground">
+              {total > 0 ? ((slice.value / total) * 100).toFixed(0) : 0}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CategoryBreakdownCard({
   title,
   description,
   icon: Icon,
   iconClass,
+  chipClass,
   barClass,
   categories,
   total,
@@ -246,6 +359,7 @@ function CategoryBreakdownCard({
   description: string;
   icon: React.ElementType;
   iconClass: string;
+  chipClass: string;
   barClass: string;
   categories: BreakdownCategory[];
   total: number;
@@ -256,21 +370,29 @@ function CategoryBreakdownCard({
   const groupedCategories = groupBreakdownCategories(categories);
 
   return (
-    <Card>
+    <Card className="border-border/60 shadow-sm">
       <CardHeader className="p-4 sm:p-6">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Icon className={cn('h-4 w-4 flex-shrink-0', iconClass)} />
-          {title}
-        </CardTitle>
-
-        <CardDescription>{description}</CardDescription>
+        <div className="flex items-center gap-2.5">
+          <div className={cn('flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl', chipClass)}>
+            <Icon className={cn('h-4 w-4', iconClass)} />
+          </div>
+          <div className="min-w-0">
+            <CardTitle className="text-base">{title}</CardTitle>
+            <CardDescription className="mt-0.5">{description}</CardDescription>
+          </div>
+        </div>
       </CardHeader>
 
       <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
         {categories.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">{emptyLabel}</p>
+          <div className="flex flex-col items-center gap-2 py-10 text-center">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
+              <Icon className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted-foreground">{emptyLabel}</p>
+          </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {groupedCategories.map((group) => {
               const parentCategory = group.items.find((item) => item.categoryId === group.parentId);
               const childCategories = group.items.filter((item) => item.parentId === group.parentId);
@@ -278,7 +400,7 @@ function CategoryBreakdownCard({
               const directParentTotal = parentCategory && !parentCategory.parentId ? parentCategory.total : 0;
 
               return (
-                <div key={group.parentId} className="rounded-lg border border-border/60 p-3">
+                <div key={group.parentId} className="rounded-xl border border-border/60 bg-secondary/20 p-3.5 transition-colors hover:bg-secondary/40">
                   {/* Parent */}
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-semibold">{group.parentName}</span>
@@ -287,9 +409,30 @@ function CategoryBreakdownCard({
                     </span>
                   </div>
 
+                  {!hasChildren && (
+                    <div className="mt-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
+                          <div
+                            className={cn('h-full rounded-full', barClass)}
+                            style={{
+                              width: `${total > 0 ? Math.min(100, (group.total / total) * 100) : 0}%`,
+                            }}
+                          />
+                        </div>
+                        <span className="w-9 flex-shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                          {total > 0 ? ((group.total / total) * 100).toFixed(0) : 0}%
+                        </span>
+                      </div>
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        {group.count} {transactionLabel}
+                      </p>
+                    </div>
+                  )}
+
                   {/* Subcategories */}
                   {hasChildren && (
-                    <div className="mt-2 space-y-2 border-l-2 border-border pl-3">
+                    <div className="mt-2.5 space-y-2.5 border-l-2 border-border pl-3">
                       {directParentTotal > 0 && parentCategory && (
                         <div className="flex items-center justify-between gap-2">
                           <span className="truncate text-xs text-muted-foreground">{parentCategory.categoryName}</span>
@@ -321,8 +464,7 @@ function CategoryBreakdownCard({
                                   }}
                                 />
                               </div>
-
-                              <span className="w-9 flex-shrink-0 text-right text-[11px] text-muted-foreground">
+                              <span className="w-9 flex-shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
                                 {group.total > 0 ? ((item.total / group.total) * 100).toFixed(0) : 0}%
                               </span>
                             </div>
@@ -334,38 +476,14 @@ function CategoryBreakdownCard({
                         ))}
                     </div>
                   )}
-
-                  {/* Parent tanpa subkategori */}
-                  {!hasChildren && (
-                    <div className="mt-2">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
-                          <div
-                            className={cn('h-full rounded-full', barClass)}
-                            style={{
-                              width: `${total > 0 ? Math.min(100, (group.total / total) * 100) : 0}%`,
-                            }}
-                          />
-                        </div>
-
-                        <span className="w-9 flex-shrink-0 text-right text-xs text-muted-foreground">
-                          {total > 0 ? ((group.total / total) * 100).toFixed(0) : 0}%
-                        </span>
-                      </div>
-
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {group.count} {transactionLabel}
-                      </p>
-                    </div>
-                  )}
                 </div>
               );
             })}
 
             {/* Total */}
-            <div className="mt-4 flex items-center justify-between border-t pt-3">
-              <span className="font-semibold">{totalLabel}</span>
-              <span className="font-mono font-bold tabular-nums">{formatCurrency(total)}</span>
+            <div className="mt-1 flex items-center justify-between rounded-xl bg-secondary/60 px-3.5 py-3">
+              <span className="text-sm font-semibold">{totalLabel}</span>
+              <span className="font-mono text-sm font-bold tabular-nums">{formatCurrency(total)}</span>
             </div>
           </div>
         )}
@@ -421,7 +539,7 @@ function PeriodCalendar({
           <Button
             variant="outline"
             size="icon"
-            className="h-7 w-7"
+            className="h-7 w-7 rounded-full"
             onClick={() => onViewMonthChange(new Date(year, month - 1, 1))}
             aria-label="Bulan sebelumnya"
           >
@@ -430,7 +548,7 @@ function PeriodCalendar({
           <Button
             variant="outline"
             size="icon"
-            className="h-7 w-7"
+            className="h-7 w-7 rounded-full"
             onClick={() => onViewMonthChange(new Date(year, month + 1, 1))}
             aria-label="Bulan berikutnya"
           >
@@ -470,7 +588,7 @@ function PeriodCalendar({
                   isRowStart && 'rounded-l-full',
                   isRowEnd && 'rounded-r-full',
                 ),
-                isSelectedEdge && 'rounded-full bg-blue-600 text-white hover:bg-blue-600',
+                isSelectedEdge && 'rounded-full bg-blue-600 font-semibold text-white hover:bg-blue-600',
                 isToday && !isSelectedEdge && 'ring-1 ring-inset ring-blue-500',
               )}
             >
@@ -493,7 +611,6 @@ function PeriodCalendar({
 export default function ReportsPage() {
   const auth = useAuth();
   const { getProfitLoss } = auth;
-  // TODO: sesuaikan kalau fungsi pengambilan transaksi di project kamu namanya/parameternya beda
   const getTransactions = (auth as unknown as { getTransactions?: (p: { startDate: string; endDate: string }) => Promise<any[]> }).getTransactions;
 
   const { t } = useLanguage();
@@ -559,8 +676,6 @@ export default function ReportsPage() {
     return isSameDay(rangeStart, preset.start) && isSameDay(rangeEnd, preset.end);
   }
 
-  // Label periode yang enak dibaca buat export: "Bulan ini (1 Agu 2026 - 31 Agu 2026)"
-  // atau "Semua waktu" / "Kustom (...)" kalau rentangnya dipilih manual dari kalender.
   const activePresetLabel = presets.find((p) => isActivePreset(p))?.label;
   const rangeText = formatRangeLabel(rangeStart, rangeEnd, t('reports.allTime'));
   const exportPeriodLabel = isAllTime
@@ -607,1022 +722,393 @@ export default function ReportsPage() {
     }
   }
 
-function exportExcel() {
-  const wb = XLSX.utils.book_new();
+  function exportExcel() {
+    const wb = XLSX.utils.book_new();
+    const generatedAt = formatDateTimeID(new Date());
 
-  const generatedAt = formatDateTimeID(new Date());
+    function buildBreakdownRows(categories: BreakdownCategory[], totalLabel: string, total: number) {
+      const groups = new Map<string, { parent: BreakdownCategory; children: BreakdownCategory[]; total: number; count: number }>();
 
-  // ============================================================
-  // Helper: buat data breakdown dengan hierarchy parent -> child
-  // ============================================================
-  function buildBreakdownRows(
-    categories: BreakdownCategory[],
-    totalLabel: string,
-    total: number,
-  ) {
-    const groups = new Map<
-      string,
-      {
-        parent: BreakdownCategory;
-        children: BreakdownCategory[];
-        total: number;
-        count: number;
-      }
-    >();
-
-    for (const category of categories) {
-      const groupId =
-        category.parentId ?? category.categoryId;
-
-      const existing = groups.get(groupId);
-
-      if (!existing) {
-        groups.set(groupId, {
-          parent: category,
-          children: [],
-          total: 0,
-          count: 0,
-        });
+      for (const category of categories) {
+        const groupId = category.parentId ?? category.categoryId;
+        const existing = groups.get(groupId);
+        if (!existing) {
+          groups.set(groupId, { parent: category, children: [], total: 0, count: 0 });
+        }
+        const group = groups.get(groupId)!;
+        group.total += category.total;
+        group.count += category.count;
+        if (category.parentId) {
+          group.children.push(category);
+        } else {
+          group.parent = category;
+        }
       }
 
-      const group = groups.get(groupId)!;
-
-      group.total += category.total;
-      group.count += category.count;
-
-      if (category.parentId) {
-        group.children.push(category);
-      } else {
-        group.parent = category;
+      const rows: (string | number)[][] = [];
+      for (const group of Array.from(groups.values()).sort((a, b) => b.total - a.total)) {
+        rows.push([group.parent.categoryName, '', group.total, group.count]);
+        for (const child of [...group.children].sort((a, b) => b.total - a.total)) {
+          rows.push(['', `↳ ${child.categoryName}`, child.total, child.count]);
+        }
+        rows.push(['', '', '', '']);
       }
-    }
-
-    const rows: (string | number)[][] = [];
-
-    for (const group of Array.from(groups.values()).sort(
-      (a, b) => b.total - a.total,
-    )) {
-      // Parent
-      rows.push([
-        group.parent.categoryName,
-        '',
-        group.total,
-        group.count,
-      ]);
-
-      // Children
-      for (const child of [...group.children].sort(
-        (a, b) => b.total - a.total,
-      )) {
-        rows.push([
-          '',
-          `↳ ${child.categoryName}`,
-          child.total,
-          child.count,
-        ]);
+      if (rows.length > 0) {
+        rows.pop();
       }
-
-      // Spasi antar parent
-      rows.push(['', '', '', '']);
+      rows.push([totalLabel, '', total, categories.reduce((sum, category) => sum + category.count, 0)]);
+      return rows;
     }
 
-    // Hapus baris kosong terakhir
-    if (rows.length > 0) {
-      rows.pop();
-    }
-
-    // Total
-    rows.push([
-      totalLabel,
-      '',
-      total,
-      categories.reduce(
-        (sum, category) => sum + category.count,
-        0,
-      ),
-    ]);
-
-    return rows;
-  }
-
-  // ============================================================
-  // SUMMARY
-  // ============================================================
-  const summaryRows: (string | number)[][] = [
-    [t('reports.title')],
-    [
-      t('reports.period').replace(':', ''),
-      exportPeriodLabel,
-    ],
-    [t('reports.generatedOn'), generatedAt],
-    [],
-    [t('reports.totalIncome'), report?.totalIncome ?? 0],
-    [
-      t('reports.totalExpenses'),
-      report?.totalExpenses ?? 0,
-    ],
-    [
-      t('reports.netProfit'),
-      report?.netProfit ?? 0,
-    ],
-  ];
-
-  const summarySheet =
-    XLSX.utils.aoa_to_sheet(summaryRows);
-
-  // Lebar kolom
-  summarySheet['!cols'] = [
-    { wch: 24 },
-    { wch: 38 },
-  ];
-
-  // Gabungkan judul
-  summarySheet['!merges'] = [
-    {
-      s: { r: 0, c: 0 },
-      e: { r: 0, c: 1 },
-    },
-  ];
-
-  // Format angka menjadi ribuan
-  for (const cellRef of ['B5', 'B6', 'B7']) {
-    if (summarySheet[cellRef]) {
-      summarySheet[cellRef].z =
-        '#,##0';
-    }
-  }
-
-  XLSX.utils.book_append_sheet(
-    wb,
-    summarySheet,
-    'Summary',
-  );
-
-  // ============================================================
-  // BREAKDOWN SHEET
-  // ============================================================
-  function createBreakdownSheet(
-    categories: BreakdownCategory[],
-    sheetName: string,
-    title: string,
-    totalLabel: string,
-    total: number,
-  ) {
-    const rows: (string | number)[][] = [
-      [title],
-      [
-        t('reports.period').replace(':', ''),
-        exportPeriodLabel,
-      ],
+    const summaryRows: (string | number)[][] = [
+      [t('reports.title')],
+      [t('reports.period').replace(':', ''), exportPeriodLabel],
+      [t('reports.generatedOn'), generatedAt],
       [],
-      [
-        t('reports.category'),
-        'Subcategory',
-        t('reports.amount'),
-        t('reports.transactions'),
-      ],
-      ...buildBreakdownRows(
-        categories,
-        totalLabel,
-        total,
-      ),
+      [t('reports.totalIncome'), report?.totalIncome ?? 0],
+      [t('reports.totalExpenses'), report?.totalExpenses ?? 0],
+      [t('reports.netProfit'), report?.netProfit ?? 0],
     ];
 
-    const sheet =
-      XLSX.utils.aoa_to_sheet(rows);
-
-    sheet['!cols'] = [
-      { wch: 32 },
-      { wch: 32 },
-      { wch: 20 },
-      { wch: 18 },
-    ];
-
-    // Merge title
-    sheet['!merges'] = [
-      {
-        s: { r: 0, c: 0 },
-        e: { r: 0, c: 3 },
-      },
-    ];
-
-    // Format kolom Amount
-    for (
-      let row = 4;
-      row < rows.length;
-      row++
-    ) {
-      const amountCell =
-        sheet[`C${row + 1}`];
-
-      if (amountCell) {
-        amountCell.z = '#,##0';
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
+    summarySheet['!cols'] = [{ wch: 24 }, { wch: 38 }];
+    summarySheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }];
+    for (const cellRef of ['B5', 'B6', 'B7']) {
+      if (summarySheet[cellRef]) {
+        summarySheet[cellRef].z = '#,##0';
       }
     }
+    XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
 
-    // Auto filter
-    if (rows.length > 4) {
-      sheet['!autofilter'] = {
-        ref: `A4:D${rows.length}`,
-      };
+    function createBreakdownSheet(categories: BreakdownCategory[], sheetName: string, title: string, totalLabel: string, total: number) {
+      const rows: (string | number)[][] = [
+        [title],
+        [t('reports.period').replace(':', ''), exportPeriodLabel],
+        [],
+        [t('reports.category'), 'Subcategory', t('reports.amount'), t('reports.transactions')],
+        ...buildBreakdownRows(categories, totalLabel, total),
+      ];
+
+      const sheet = XLSX.utils.aoa_to_sheet(rows);
+      sheet['!cols'] = [{ wch: 32 }, { wch: 32 }, { wch: 20 }, { wch: 18 }];
+      sheet['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }];
+
+      for (let row = 4; row < rows.length; row++) {
+        const amountCell = sheet[`C${row + 1}`];
+        if (amountCell) {
+          amountCell.z = '#,##0';
+        }
+      }
+
+      if (rows.length > 4) {
+        sheet['!autofilter'] = { ref: `A4:D${rows.length}` };
+      }
+
+      XLSX.utils.book_append_sheet(wb, sheet, sheetName);
     }
 
-    XLSX.utils.book_append_sheet(
-      wb,
-      sheet,
-      sheetName,
-    );
+    createBreakdownSheet(report?.incomeBreakdown ?? [], 'Income Breakdown', t('reports.incomeBreakdown'), t('reports.totalIncome'), report?.totalIncome ?? 0);
+    createBreakdownSheet(report?.expenseBreakdown ?? [], 'Expense Breakdown', t('reports.expenseBreakdown'), t('reports.totalExpenses'), report?.totalExpenses ?? 0);
+
+    XLSX.writeFile(wb, 'profit-loss-report.xlsx');
   }
 
-  // Income
-  createBreakdownSheet(
-    report?.incomeBreakdown ?? [],
-    'Income Breakdown',
-    t('reports.incomeBreakdown'),
-    t('reports.totalIncome'),
-    report?.totalIncome ?? 0,
-  );
+  function exportPdf() {
+    const win = window.open('', '_blank');
+    if (!win) return;
 
-  // Expense
-  createBreakdownSheet(
-    report?.expenseBreakdown ?? [],
-    'Expense Breakdown',
-    t('reports.expenseBreakdown'),
-    t('reports.totalExpenses'),
-    report?.totalExpenses ?? 0,
-  );
-
-  // ============================================================
-  // EXPORT
-  // ============================================================
-  XLSX.writeFile(
-    wb,
-    'profit-loss-report.xlsx',
-  );
-}
-
-function exportPdf() {
-  const win = window.open('', '_blank');
-
-  if (!win) return;
-
-  function escapeHtml(value: string) {
-    return value
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
-
-  function buildBreakdownRows(
-    categories: BreakdownCategory[],
-  ) {
-    const groups = new Map<
-      string,
-      {
-        parent: BreakdownCategory;
-        children: BreakdownCategory[];
-        total: number;
-        count: number;
-      }
-    >();
-
-    for (const category of categories) {
-      const groupId =
-        category.parentId ?? category.categoryId;
-
-      const existing = groups.get(groupId);
-
-      if (!existing) {
-        groups.set(groupId, {
-          parent: category,
-          children: [],
-          total: 0,
-          count: 0,
-        });
-      }
-
-      const group = groups.get(groupId)!;
-
-      group.total += category.total;
-      group.count += category.count;
-
-      if (category.parentId) {
-        group.children.push(category);
-      } else {
-        group.parent = category;
-      }
+    function escapeHtml(value: string) {
+      return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
     }
 
-    return Array.from(groups.values())
-      .sort((a, b) => b.total - a.total)
-      .map((group) => {
-        const parentName =
-          group.parent.categoryName;
+    function buildBreakdownRows(categories: BreakdownCategory[]) {
+      const groups = new Map<string, { parent: BreakdownCategory; children: BreakdownCategory[]; total: number; count: number }>();
 
-        const parentRow = `
-          <tr class="parent-row">
-            <td class="parent-cell">
-              ${escapeHtml(parentName)}
-            </td>
+      for (const category of categories) {
+        const groupId = category.parentId ?? category.categoryId;
+        const existing = groups.get(groupId);
+        if (!existing) {
+          groups.set(groupId, { parent: category, children: [], total: 0, count: 0 });
+        }
+        const group = groups.get(groupId)!;
+        group.total += category.total;
+        group.count += category.count;
+        if (category.parentId) {
+          group.children.push(category);
+        } else {
+          group.parent = category;
+        }
+      }
 
-            <td class="subcategory-cell">
-            </td>
+      return Array.from(groups.values())
+        .sort((a, b) => b.total - a.total)
+        .map((group) => {
+          const parentName = group.parent.categoryName;
+          const parentRow = `
+            <tr class="parent-row">
+              <td class="parent-cell">${escapeHtml(parentName)}</td>
+              <td class="subcategory-cell"></td>
+              <td class="amount-cell">${formatCurrency(group.total)}</td>
+              <td class="count-cell">${group.count}</td>
+            </tr>
+          `;
 
-            <td class="amount-cell">
-              ${formatCurrency(group.total)}
-            </td>
+          const childRows = [...group.children]
+            .sort((a, b) => b.total - a.total)
+            .map(
+              (child) => `
+                <tr class="child-row">
+                  <td class="parent-cell">${escapeHtml(group.parent.categoryName)}</td>
+                  <td class="subcategory-cell"><span class="tree-line">└</span>${escapeHtml(child.categoryName)}</td>
+                  <td class="amount-cell">${formatCurrency(child.total)}</td>
+                  <td class="count-cell">${child.count}</td>
+                </tr>
+              `,
+            )
+            .join('');
 
-            <td class="count-cell">
-              ${group.count}
-            </td>
-          </tr>
-        `;
+          return parentRow + childRows;
+        })
+        .join('');
+    }
 
-        const childRows = [
-          ...group.children,
-        ]
-          .sort((a, b) => b.total - a.total)
-          .map(
-            (child) => `
-              <tr class="child-row">
-                <td class="parent-cell">
-                  ${escapeHtml(
-                    group.parent.categoryName,
-                  )}
-                </td>
+    const incomeRows = buildBreakdownRows(report?.incomeBreakdown ?? []);
+    const expenseRows = buildBreakdownRows(report?.expenseBreakdown ?? []);
+    const incomeTransactionCount = report?.incomeBreakdown.reduce((sum, item) => sum + item.count, 0) ?? 0;
+    const expenseTransactionCount = report?.expenseBreakdown.reduce((sum, item) => sum + item.count, 0) ?? 0;
 
-                <td class="subcategory-cell">
-                  <span class="tree-line">└</span>
-                  ${escapeHtml(
-                    child.categoryName,
-                  )}
-                </td>
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>${escapeHtml(t('reports.title'))}</title>
+          <style>
+            * { box-sizing: border-box; }
+            @page { size: A4; margin: 18mm 14mm; }
+            body { font-family: Arial, Helvetica, sans-serif; color: #1f2937; background: #ffffff; margin: 0; font-size: 12px; line-height: 1.45; }
+            .report { width: 100%; }
+            .header { margin-bottom: 24px; }
+            .title { margin: 0; font-size: 25px; line-height: 1.2; font-weight: 700; color: #111827; }
+            .subtitle { margin-top: 5px; color: #6b7280; font-size: 12px; }
+            .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+            .meta-box { padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb; }
+            .meta-label { display: block; font-size: 10px; color: #6b7280; margin-bottom: 2px; }
+            .meta-value { font-size: 12px; font-weight: 600; color: #111827; }
+            .summary { margin-bottom: 28px; }
+            .summary-title { margin: 0 0 10px; font-size: 14px; font-weight: 700; color: #111827; }
+            .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+            .summary-card { padding: 13px 14px; border: 1px solid #e5e7eb; border-radius: 9px; background: #ffffff; }
+            .summary-card.income { border-top: 3px solid #10b981; }
+            .summary-card.expense { border-top: 3px solid #f43f5e; }
+            .summary-card.profit { border-top: 3px solid #f59e0b; }
+            .summary-label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.03em; }
+            .summary-value { margin-top: 5px; font-size: 18px; font-weight: 700; color: #111827; }
+            .section { margin-bottom: 26px; page-break-inside: avoid; }
+            .section-title { margin: 0 0 4px; font-size: 16px; font-weight: 700; color: #111827; }
+            .section-description { margin-bottom: 10px; color: #6b7280; font-size: 11px; }
+            table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+            thead { display: table-header-group; }
+            th { padding: 9px 8px; text-align: left; font-size: 10px; font-weight: 700; color: #374151; background: #f3f4f6; border-top: 1px solid #d1d5db; border-bottom: 2px solid #d1d5db; }
+            td { padding: 8px; border-bottom: 1px solid #e5e7eb; vertical-align: middle; }
+            .parent-row { background: #f9fafb; font-weight: 700; }
+            .parent-row td { border-bottom: 1px solid #d1d5db; }
+            .child-row { background: #ffffff; }
+            .child-row td { color: #4b5563; }
+            .parent-cell { width: 30%; }
+            .subcategory-cell { width: 35%; }
+            .amount-cell { width: 22%; text-align: right; white-space: nowrap; font-family: 'Courier New', monospace; font-weight: 600; }
+            .count-cell { width: 13%; text-align: center; }
+            .tree-line { display: inline-block; width: 18px; color: #9ca3af; font-weight: 700; }
+            .total-row { background: #f3f4f6; font-weight: 700; }
+            .total-row td { border-top: 2px solid #d1d5db; border-bottom: 0; }
+            .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 10px; }
+            .no-print { margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb; }
+            .print-button { padding: 10px 18px; border: 0; border-radius: 7px; background: #111827; color: white; cursor: pointer; font-size: 13px; }
+            @media print {
+              .no-print { display: none; }
+              .section { page-break-inside: avoid; }
+              .parent-row, .child-row { page-break-inside: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="report">
+            <div class="header">
+              <h1 class="title">${escapeHtml(t('reports.title'))}</h1>
+              <div class="subtitle">${escapeHtml(t('reports.subtitle'))}</div>
+              <div class="meta">
+                <div class="meta-box">
+                  <span class="meta-label">${escapeHtml(t('reports.period'))}</span>
+                  <span class="meta-value">${escapeHtml(exportPeriodLabel)}</span>
+                </div>
+                <div class="meta-box">
+                  <span class="meta-label">${escapeHtml(t('reports.generatedOn'))}</span>
+                  <span class="meta-value">${escapeHtml(formatDateTimeID(new Date()))}</span>
+                </div>
+              </div>
+            </div>
 
-                <td class="amount-cell">
-                  ${formatCurrency(
-                    child.total,
-                  )}
-                </td>
+            <div class="summary">
+              <h2 class="summary-title">${escapeHtml(t('reports.title'))}</h2>
+              <div class="summary-grid">
+                <div class="summary-card income">
+                  <div class="summary-label">${escapeHtml(t('reports.totalIncome'))}</div>
+                  <div class="summary-value">${formatCurrency(report?.totalIncome ?? 0)}</div>
+                </div>
+                <div class="summary-card expense">
+                  <div class="summary-label">${escapeHtml(t('reports.totalExpenses'))}</div>
+                  <div class="summary-value">${formatCurrency(report?.totalExpenses ?? 0)}</div>
+                </div>
+                <div class="summary-card profit">
+                  <div class="summary-label">${escapeHtml(t('reports.netProfit'))}</div>
+                  <div class="summary-value">${formatCurrency(report?.netProfit ?? 0)}</div>
+                </div>
+              </div>
+            </div>
 
-                <td class="count-cell">
-                  ${child.count}
-                </td>
-              </tr>
-            `,
-          )
-          .join('');
+            <div class="section">
+              <h2 class="section-title">${escapeHtml(t('reports.incomeBreakdown'))}</h2>
+              <div class="section-description">${escapeHtml(t('reports.revenueByCategory'))}</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Parent Category</th>
+                    <th>Subcategory</th>
+                    <th style="text-align:right">${escapeHtml(t('reports.amount'))}</th>
+                    <th style="text-align:center">${escapeHtml(t('reports.transactions'))}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${incomeRows}
+                  <tr class="total-row">
+                    <td colspan="2">${escapeHtml(t('reports.totalIncome'))}</td>
+                    <td class="amount-cell">${formatCurrency(report?.totalIncome ?? 0)}</td>
+                    <td class="count-cell">${incomeTransactionCount}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
-        return parentRow + childRows;
-      })
-      .join('');
+            <div class="section">
+              <h2 class="section-title">${escapeHtml(t('reports.expenseBreakdown'))}</h2>
+              <div class="section-description">${escapeHtml(t('reports.costsByCategory'))}</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Parent Category</th>
+                    <th>Subcategory</th>
+                    <th style="text-align:right">${escapeHtml(t('reports.amount'))}</th>
+                    <th style="text-align:center">${escapeHtml(t('reports.transactions'))}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${expenseRows}
+                  <tr class="total-row">
+                    <td colspan="2">${escapeHtml(t('reports.totalExpenses'))}</td>
+                    <td class="amount-cell">${formatCurrency(report?.totalExpenses ?? 0)}</td>
+                    <td class="count-cell">${expenseTransactionCount}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="footer">${escapeHtml(t('reports.generatedOn'))} ${escapeHtml(formatDateTimeID(new Date()))}</div>
+
+            <div class="no-print">
+              <button class="print-button" onclick="window.print()">${escapeHtml(t('reports.printSaveAsPdf'))}</button>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+
+    win.document.close();
   }
 
-  const incomeRows = buildBreakdownRows(
-    report?.incomeBreakdown ?? [],
-  );
-
-  const expenseRows = buildBreakdownRows(
-    report?.expenseBreakdown ?? [],
-  );
-
-  const incomeTransactionCount =
-    report?.incomeBreakdown.reduce(
-      (sum, item) => sum + item.count,
-      0,
-    ) ?? 0;
-
-  const expenseTransactionCount =
-    report?.expenseBreakdown.reduce(
-      (sum, item) => sum + item.count,
-      0,
-    ) ?? 0;
-
-  win.document.write(`
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8" />
-
-        <title>
-          ${escapeHtml(t('reports.title'))}
-        </title>
-
-        <style>
-          * {
-            box-sizing: border-box;
-          }
-
-          @page {
-            size: A4;
-            margin: 18mm 14mm;
-          }
-
-          body {
-            font-family:
-              Arial,
-              Helvetica,
-              sans-serif;
-
-            color: #1f2937;
-            background: #ffffff;
-
-            margin: 0;
-            font-size: 12px;
-            line-height: 1.45;
-          }
-
-          .report {
-            width: 100%;
-          }
-
-          .header {
-            margin-bottom: 24px;
-          }
-
-          .title {
-            margin: 0;
-            font-size: 25px;
-            line-height: 1.2;
-            font-weight: 700;
-            color: #111827;
-          }
-
-          .subtitle {
-            margin-top: 5px;
-            color: #6b7280;
-            font-size: 12px;
-          }
-
-          .meta {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 14px;
-          }
-
-          .meta-box {
-            padding: 10px 12px;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            background: #f9fafb;
-          }
-
-          .meta-label {
-            display: block;
-            font-size: 10px;
-            color: #6b7280;
-            margin-bottom: 2px;
-          }
-
-          .meta-value {
-            font-size: 12px;
-            font-weight: 600;
-            color: #111827;
-          }
-
-          .summary {
-            margin-bottom: 28px;
-          }
-
-          .summary-title {
-            margin: 0 0 10px;
-            font-size: 14px;
-            font-weight: 700;
-            color: #111827;
-          }
-
-          .summary-grid {
-            display: grid;
-            grid-template-columns:
-              repeat(3, 1fr);
-
-            gap: 10px;
-          }
-
-          .summary-card {
-            padding: 13px 14px;
-            border:
-              1px solid
-              #e5e7eb;
-
-            border-radius: 9px;
-            background: #ffffff;
-          }
-
-          .summary-card.income {
-            border-top: 3px solid #10b981;
-          }
-
-          .summary-card.expense {
-            border-top: 3px solid #f43f5e;
-          }
-
-          .summary-card.profit {
-            border-top: 3px solid #f59e0b;
-          }
-
-          .summary-label {
-            font-size: 10px;
-            color: #6b7280;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-          }
-
-          .summary-value {
-            margin-top: 5px;
-            font-size: 18px;
-            font-weight: 700;
-            color: #111827;
-          }
-
-          .section {
-            margin-bottom: 26px;
-            page-break-inside: avoid;
-          }
-
-          .section-title {
-            margin: 0 0 4px;
-            font-size: 16px;
-            font-weight: 700;
-            color: #111827;
-          }
-
-          .section-description {
-            margin-bottom: 10px;
-            color: #6b7280;
-            font-size: 11px;
-          }
-
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-          }
-
-          thead {
-            display: table-header-group;
-          }
-
-          th {
-            padding: 9px 8px;
-            text-align: left;
-
-            font-size: 10px;
-            font-weight: 700;
-
-            color: #374151;
-            background: #f3f4f6;
-
-            border-top: 1px solid #d1d5db;
-            border-bottom: 2px solid #d1d5db;
-          }
-
-          td {
-            padding: 8px;
-            border-bottom: 1px solid #e5e7eb;
-            vertical-align: middle;
-          }
-
-          .parent-row {
-            background: #f9fafb;
-            font-weight: 700;
-          }
-
-          .parent-row td {
-            border-bottom:
-              1px solid
-              #d1d5db;
-          }
-
-          .child-row {
-            background: #ffffff;
-          }
-
-          .child-row td {
-            color: #4b5563;
-          }
-
-          .parent-cell {
-            width: 30%;
-          }
-
-          .subcategory-cell {
-            width: 35%;
-          }
-
-          .amount-cell {
-            width: 22%;
-            text-align: right;
-            white-space: nowrap;
-            font-family:
-              'Courier New',
-              monospace;
-            font-weight: 600;
-          }
-
-          .count-cell {
-            width: 13%;
-            text-align: center;
-          }
-
-          .tree-line {
-            display: inline-block;
-            width: 18px;
-            color: #9ca3af;
-            font-weight: 700;
-          }
-
-          .total-row {
-            background: #f3f4f6;
-            font-weight: 700;
-          }
-
-          .total-row td {
-            border-top: 2px solid #d1d5db;
-            border-bottom: 0;
-          }
-
-          .footer {
-            margin-top: 30px;
-            padding-top: 10px;
-            border-top: 1px solid #e5e7eb;
-            color: #9ca3af;
-            font-size: 10px;
-          }
-
-          .no-print {
-            margin-top: 24px;
-            padding-top: 16px;
-            border-top: 1px solid #e5e7eb;
-          }
-
-          .print-button {
-            padding: 10px 18px;
-            border: 0;
-            border-radius: 7px;
-            background: #111827;
-            color: white;
-            cursor: pointer;
-            font-size: 13px;
-          }
-
-          @media print {
-            .no-print {
-              display: none;
-            }
-
-            .section {
-              page-break-inside: avoid;
-            }
-
-            .parent-row,
-            .child-row {
-              page-break-inside: avoid;
-            }
-          }
-        </style>
-      </head>
-
-      <body>
-        <div class="report">
-
-          <div class="header">
-            <h1 class="title">
-              ${escapeHtml(
-                t('reports.title'),
-              )}
-            </h1>
-
-            <div class="subtitle">
-              ${escapeHtml(
-                t(
-                  'reports.subtitle',
-                ),
-              )}
-            </div>
-
-            <div class="meta">
-              <div class="meta-box">
-                <span class="meta-label">
-                  ${escapeHtml(
-                    t('reports.period'),
-                  )}
-                </span>
-
-                <span class="meta-value">
-                  ${escapeHtml(
-                    exportPeriodLabel,
-                  )}
-                </span>
-              </div>
-
-              <div class="meta-box">
-                <span class="meta-label">
-                  ${escapeHtml(
-                    t(
-                      'reports.generatedOn',
-                    ),
-                  )}
-                </span>
-
-                <span class="meta-value">
-                  ${escapeHtml(
-                    formatDateTimeID(
-                      new Date(),
-                    ),
-                  )}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div class="summary">
-            <h2 class="summary-title">
-              ${escapeHtml(
-                t('reports.title'),
-              )}
-            </h2>
-
-            <div class="summary-grid">
-
-              <div class="summary-card income">
-                <div class="summary-label">
-                  ${escapeHtml(
-                    t(
-                      'reports.totalIncome',
-                    ),
-                  )}
-                </div>
-
-                <div class="summary-value">
-                  ${formatCurrency(
-                    report?.totalIncome ??
-                      0,
-                  )}
-                </div>
-              </div>
-
-              <div class="summary-card expense">
-                <div class="summary-label">
-                  ${escapeHtml(
-                    t(
-                      'reports.totalExpenses',
-                    ),
-                  )}
-                </div>
-
-                <div class="summary-value">
-                  ${formatCurrency(
-                    report?.totalExpenses ??
-                      0,
-                  )}
-                </div>
-              </div>
-
-              <div class="summary-card profit">
-                <div class="summary-label">
-                  ${escapeHtml(
-                    t(
-                      'reports.netProfit',
-                    ),
-                  )}
-                </div>
-
-                <div class="summary-value">
-                  ${formatCurrency(
-                    report?.netProfit ??
-                      0,
-                  )}
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          <div class="section">
-
-            <h2 class="section-title">
-              ${escapeHtml(
-                t(
-                  'reports.incomeBreakdown',
-                ),
-              )}
-            </h2>
-
-            <div class="section-description">
-              ${escapeHtml(
-                t(
-                  'reports.revenueByCategory',
-                ),
-              )}
-            </div>
-
-            <table>
-              <thead>
-                <tr>
-                  <th>
-                    Parent Category
-                  </th>
-
-                  <th>
-                    Subcategory
-                  </th>
-
-                  <th style="text-align:right">
-                    ${escapeHtml(
-                      t(
-                        'reports.amount',
-                      ),
-                    )}
-                  </th>
-
-                  <th style="text-align:center">
-                    ${escapeHtml(
-                      t(
-                        'reports.transactions',
-                      ),
-                    )}
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                ${incomeRows}
-
-                <tr class="total-row">
-                  <td colspan="2">
-                    ${escapeHtml(
-                      t(
-                        'reports.totalIncome',
-                      ),
-                    )}
-                  </td>
-
-                  <td class="amount-cell">
-                    ${formatCurrency(
-                      report?.totalIncome ??
-                        0,
-                    )}
-                  </td>
-
-                  <td class="count-cell">
-                    ${incomeTransactionCount}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-
-          </div>
-
-          <div class="section">
-
-            <h2 class="section-title">
-              ${escapeHtml(
-                t(
-                  'reports.expenseBreakdown',
-                ),
-              )}
-            </h2>
-
-            <div class="section-description">
-              ${escapeHtml(
-                t(
-                  'reports.costsByCategory',
-                ),
-              )}
-            </div>
-
-            <table>
-              <thead>
-                <tr>
-                  <th>
-                    Parent Category
-                  </th>
-
-                  <th>
-                    Subcategory
-                  </th>
-
-                  <th style="text-align:right">
-                    ${escapeHtml(
-                      t(
-                        'reports.amount',
-                      ),
-                    )}
-                  </th>
-
-                  <th style="text-align:center">
-                    ${escapeHtml(
-                      t(
-                        'reports.transactions',
-                      ),
-                    )}
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                ${expenseRows}
-
-                <tr class="total-row">
-                  <td colspan="2">
-                    ${escapeHtml(
-                      t(
-                        'reports.totalExpenses',
-                      ),
-                    )}
-                  </td>
-
-                  <td class="amount-cell">
-                    ${formatCurrency(
-                      report?.totalExpenses ??
-                        0,
-                    )}
-                  </td>
-
-                  <td class="count-cell">
-                    ${expenseTransactionCount}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-
-          </div>
-
-          <div class="footer">
-            ${escapeHtml(
-              t('reports.generatedOn'),
-            )}
-            ${escapeHtml(
-              formatDateTimeID(
-                new Date(),
-              ),
-            )}
-          </div>
-
-          <div class="no-print">
-            <button
-              class="print-button"
-              onclick="window.print()"
-            >
-              ${escapeHtml(
-                t(
-                  'reports.printSaveAsPdf',
-                ),
-              )}
-            </button>
-          </div>
-
-        </div>
-      </body>
-    </html>
-  `);
-
-  win.document.close();
-}
+  // Rasio pengeluaran terhadap pemasukan — tidak terdefinisi kalau belum ada pemasukan sama sekali,
+  // jadi badge disembunyikan (bukan dipaksa jadi 0% atau 100% yang bisa menyesatkan).
+  const expenseRatio = report && report.totalIncome > 0 ? (report.totalExpenses / report.totalIncome) * 100 : null;
+  const expenseBarPercent = report
+    ? expenseRatio !== null
+      ? expenseRatio
+      : report.totalExpenses > 0
+        ? 100 // tidak ada pemasukan tapi ada pengeluaran → bar penuh (semua aktivitas keluar), tanpa klaim %
+        : 0
+    : 0;
+
+  // Margin bersih — sama, hanya terdefinisi kalau ada pemasukan. Bar tidak dipaksa minimum 4%
+  // lagi supaya margin negatif (rugi) tampil sebagai bar kosong, bukan kelihatan masih untung dikit.
+  const netMargin = report && report.totalIncome > 0 ? (report.netProfit / report.totalIncome) * 100 : null;
 
   const summaryCards = report
     ? [
-        { label: t('reports.totalIncome'), value: report.totalIncome, icon: TrendingUp, tone: 'emerald' as CardTone, trendUp: true },
-        { label: t('reports.totalExpenses'), value: report.totalExpenses, icon: TrendingDown, tone: 'rose' as CardTone, trendUp: false },
-        { label: t('reports.netProfit'), value: report.netProfit, icon: RupiahIcon, tone: 'amber' as CardTone, trendUp: report.netProfit >= 0 },
+        {
+          label: t('reports.totalIncome'),
+          value: report.totalIncome,
+          icon: TrendingUp,
+          tone: 'emerald' as CardTone,
+          trendUp: true,
+          barPercent: 100,
+          badgePercent: null, // baseline, bukan hasil rasio apa pun — tidak perlu angka %
+        },
+        {
+          label: t('reports.totalExpenses'),
+          value: report.totalExpenses,
+          icon: TrendingDown,
+          tone: 'rose' as CardTone,
+          trendUp: false,
+          barPercent: expenseBarPercent,
+          badgePercent: expenseRatio,
+        },
+        {
+          label: t('reports.netProfit'),
+          value: report.netProfit,
+          icon: RupiahIcon,
+          tone: 'amber' as CardTone,
+          trendUp: report.netProfit >= 0,
+          barPercent: netMargin !== null ? Math.max(0, netMargin) : 0,
+          badgePercent: netMargin,
+        },
       ]
     : [];
 
-  const chartData = report
-    ? [
-        ...report.incomeBreakdown.map((c) => ({ name: c.categoryName, amount: c.total, type: 'Income' as const })),
-        ...report.expenseBreakdown.map((c) => ({ name: c.categoryName, amount: c.total, type: 'Expense' as const })),
-      ].sort((a, b) => b.amount - a.amount)
-    : [];
-
-  const barFill = (type: 'Income' | 'Expense') => (type === 'Income' ? 'url(#incomeGradient)' : 'url(#expenseGradient)');
+  // "Lainnya" hardcode (senada dengan label kalender/bulan lain di halaman ini yang juga hardcode ID)
+  const incomeSlices = report ? buildDonutSlices(report.incomeBreakdown, 5, 'Lainnya') : [];
+  const expenseSlices = report ? buildDonutSlices(report.expenseBreakdown, 5, 'Lainnya') : [];
   const isExporting = exporting !== null;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
       <PageHeader title={t('reports.title')} description={t('reports.subtitle')}>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
-          <Button variant="outline" size="sm" onClick={() => handleExport('pdf')} disabled={isExporting || loading}>
-            {exporting === 'pdf' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+          <Button variant="outline" size="sm" onClick={() => handleExport('pdf')} disabled={isExporting || loading} className="gap-1.5">
+            {exporting === 'pdf' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
             {t('reports.exportPdf')}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => handleExport('excel')} disabled={isExporting || loading}>
-            {exporting === 'excel' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />}
+          <Button variant="outline" size="sm" onClick={() => handleExport('excel')} disabled={isExporting || loading} className="gap-1.5">
+            {exporting === 'excel' ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />}
             {t('reports.exportExcel')}
           </Button>
         </div>
       </PageHeader>
 
       {/* Filter periode — pintasan cepat + kalender, rapi di mobile & desktop */}
-      <Card className="mb-5 sm:mb-6">
+      <Card className="mb-5 border-border/60 shadow-sm sm:mb-6">
         <CardContent className="p-4 sm:p-5">
           <div className="mb-4 flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <CalendarIcon className="h-4 w-4 flex-shrink-0" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-950/40">
+              <CalendarIcon className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+            </div>
             {t('reports.period')}
-            <span className="ml-auto truncate text-xs font-normal text-foreground">{formatRangeLabel(rangeStart, rangeEnd, t('reports.allTime'))}</span>
+            <span className="ml-auto truncate rounded-full bg-secondary px-2.5 py-1 text-xs font-normal text-foreground">
+              {formatRangeLabel(rangeStart, rangeEnd, t('reports.allTime'))}
+            </span>
           </div>
 
           <div className="flex flex-col gap-5 lg:mx-auto lg:max-w-4xl lg:flex-row lg:items-start">
@@ -1636,30 +1122,30 @@ function exportPdf() {
                     key={p.id}
                     onClick={() => applyPreset(p)}
                     className={cn(
-                      'flex flex-shrink-0 items-center gap-2.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-sm transition-colors lg:w-full lg:whitespace-normal lg:rounded-lg lg:text-left',
+                      'flex flex-shrink-0 items-center gap-2.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-sm transition-all lg:w-full lg:whitespace-normal lg:rounded-lg lg:text-left',
                       active
-                        ? 'border-blue-600 bg-blue-50 font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-400'
-                        : 'border-border text-foreground hover:bg-secondary',
+                        ? 'border-blue-600 bg-blue-600 font-medium text-white shadow-sm'
+                        : 'border-border text-foreground hover:border-blue-200 hover:bg-secondary',
                     )}
                   >
-                    <Icon className={cn('h-4 w-4 flex-shrink-0', active ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground')} />
+                    <Icon className={cn('h-4 w-4 flex-shrink-0', active ? 'text-white' : 'text-muted-foreground')} />
                     <span className="flex-1">{p.label}</span>
-                    {active && <Check className="hidden h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400 lg:block" />}
+                    {active && <Check className="hidden h-4 w-4 flex-shrink-0 text-white lg:block" />}
                   </button>
                 );
               })}
               <button
                 onClick={handleClearRange}
                 className={cn(
-                  'flex flex-shrink-0 items-center gap-2.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-sm transition-colors lg:w-full lg:whitespace-normal lg:rounded-lg lg:text-left',
+                  'flex flex-shrink-0 items-center gap-2.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-sm transition-all lg:w-full lg:whitespace-normal lg:rounded-lg lg:text-left',
                   isAllTime
-                    ? 'border-blue-600 bg-blue-50 font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-400'
-                    : 'border-border text-muted-foreground hover:bg-secondary',
+                    ? 'border-blue-600 bg-blue-600 font-medium text-white shadow-sm'
+                    : 'border-border text-muted-foreground hover:border-blue-200 hover:bg-secondary',
                 )}
               >
-                <InfinityIcon className={cn('h-4 w-4 flex-shrink-0', isAllTime ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground')} />
+                <InfinityIcon className={cn('h-4 w-4 flex-shrink-0', isAllTime ? 'text-white' : 'text-muted-foreground')} />
                 <span className="flex-1">{t('reports.allTime')}</span>
-                {isAllTime && <Check className="hidden h-4 w-4 flex-shrink-0 text-blue-600 dark:text-blue-400 lg:block" />}
+                {isAllTime && <Check className="hidden h-4 w-4 flex-shrink-0 text-white lg:block" />}
               </button>
             </div>
 
@@ -1730,12 +1216,23 @@ function exportPdf() {
       {loading ? (
         <div className="space-y-5 sm:space-y-6">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 sm:h-28" />)}
+            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl sm:h-32" />)}
           </div>
-          <Skeleton className="h-80" />
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
+            <Skeleton className="h-72 rounded-xl" />
+            <Skeleton className="h-72 rounded-xl" />
+          </div>
+          <Skeleton className="h-80 rounded-xl" />
         </div>
       ) : !report ? (
-        <Card><CardContent className="py-16 text-center text-sm text-muted-foreground">{t('reports.loadFailed')}</CardContent></Card>
+        <Card className="border-border/60 shadow-sm">
+          <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
+              <PieChart className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted-foreground">{t('reports.loadFailed')}</p>
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-5 sm:space-y-6">
           {/* Summary cards */}
@@ -1748,6 +1245,8 @@ function exportPdf() {
                 icon={card.icon}
                 tone={card.tone}
                 trendUp={card.trendUp}
+                barPercent={card.barPercent}
+                badgePercent={card.badgePercent}
                 delay={i * 50}
               />
             ))}
@@ -1760,6 +1259,7 @@ function exportPdf() {
               description={t('reports.revenueByCategory')}
               icon={TrendingUp}
               iconClass="text-emerald-600 dark:text-emerald-400"
+              chipClass="bg-emerald-50 dark:bg-emerald-950/40"
               barClass="bg-emerald-500"
               categories={report.incomeBreakdown}
               total={report.totalIncome}
@@ -1772,6 +1272,7 @@ function exportPdf() {
               description={t('reports.costsByCategory')}
               icon={TrendingDown}
               iconClass="text-rose-600 dark:text-rose-400"
+              chipClass="bg-rose-50 dark:bg-rose-950/40"
               barClass="bg-rose-500"
               categories={report.expenseBreakdown}
               total={report.totalExpenses}
@@ -1781,77 +1282,46 @@ function exportPdf() {
             />
           </div>
 
-          {/* Bar chart */}
-          {chartData.length > 0 && (
-            <Card>
+          {/* Donut charts: proporsi kategori, terpisah income vs expense supaya tetap ringkas
+              walau jumlah kategori & subkategorinya banyak */}
+          {(incomeSlices.length > 0 || expenseSlices.length > 0) && (
+            <Card className="border-border/60 shadow-sm">
               <CardHeader className="p-4 sm:p-6">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <PieChart className="h-4 w-4 flex-shrink-0" />
                   {t('reports.categoryComparison')}
                 </CardTitle>
                 <CardDescription>{t('reports.amountByCategory')}</CardDescription>
-                <div className="flex items-center gap-4 pt-1">
-                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" /> {t('transactions.income')}
-                  </span>
-                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <span className="h-2 w-2 rounded-full bg-rose-500" /> {t('transactions.expense')}
-                  </span>
-                </div>
               </CardHeader>
-              <CardContent className="p-2 pt-0 sm:p-6 sm:pt-0">
-                <ResponsiveContainer width="100%" height={Math.max(220, chartData.length * 38)} className="sm:!h-[360px]">
-                  <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 48, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="incomeGradient" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="hsl(160 84% 33%)" />
-                        <stop offset="100%" stopColor="hsl(160 84% 45%)" />
-                      </linearGradient>
-                      <linearGradient id="expenseGradient" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="hsl(347 77% 44%)" />
-                        <stop offset="100%" stopColor="hsl(347 77% 56%)" />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-                    <XAxis
-                      type="number"
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                      axisLine={{ stroke: 'hsl(var(--border))' }}
-                      tickLine={false}
-                      tickFormatter={(v) => formatCurrencyCompact(v)}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="name"
-                      tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                      axisLine={false}
-                      tickLine={false}
-                      width={90}
-                      tickFormatter={(v: string) => (v.length > 12 ? `${v.slice(0, 11)}…` : v)}
-                    />
-                    <Tooltip
-                      cursor={{ fill: 'hsl(var(--secondary))' }}
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px',
-                        fontSize: '13px',
-                      }}
-                      formatter={(value) => formatCurrency(Number(value))}
-                    />
-                    <Bar dataKey="amount" radius={[0, 4, 4, 0]} animationDuration={600} animationEasing="ease-out">
-                      {chartData.map((d, i) => (
-                        <Cell key={i} fill={barFill(d.type)} />
-                      ))}
-                      <LabelList
-                        dataKey="amount"
-                        position="right"
-                        formatter={(v: any) => formatCurrencyCompact(Number(v) || 0)}
-                        style={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+              <CardContent className="grid grid-cols-1 gap-6 p-4 pt-0 sm:grid-cols-2 sm:gap-8 sm:p-6 sm:pt-0">
+                <div>
+                  <p className="mb-1 flex items-center gap-1.5 text-sm font-medium">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    {t('transactions.income')}
+                  </p>
+                  <CategoryDonutChart
+                    title={t('reports.incomeBreakdown')}
+                    total={report?.totalIncome ?? 0}
+                    totalLabel={t('reports.totalIncome')}
+                    slices={incomeSlices}
+                    colors={INCOME_DONUT_COLORS}
+                    emptyLabel={t('reports.noIncomeInPeriod')}
+                  />
+                </div>
+                <div>
+                  <p className="mb-1 flex items-center gap-1.5 text-sm font-medium">
+                    <span className="h-2 w-2 rounded-full bg-rose-500" />
+                    {t('transactions.expense')}
+                  </p>
+                  <CategoryDonutChart
+                    title={t('reports.expenseBreakdown')}
+                    total={report?.totalExpenses ?? 0}
+                    totalLabel={t('reports.totalExpenses')}
+                    slices={expenseSlices}
+                    colors={EXPENSE_DONUT_COLORS}
+                    emptyLabel={t('reports.noExpensesInPeriod')}
+                  />
+                </div>
               </CardContent>
             </Card>
           )}

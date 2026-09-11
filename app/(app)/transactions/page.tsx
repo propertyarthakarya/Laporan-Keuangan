@@ -178,7 +178,7 @@ function CategoryPicker({
           type="button"
           variant="outline"
           className={cn(
-            'w-full justify-between font-normal',
+            'w-full justify-between font-normal transition-colors',
             !displayLabel && 'text-muted-foreground',
           )}
         >
@@ -365,7 +365,7 @@ function CategoryFilterPicker({
           type="button"
           variant="outline"
           className={cn(
-            'w-full justify-between font-normal',
+            'w-full justify-between font-normal transition-colors',
             (value === 'all' || !value) && 'text-muted-foreground',
           )}
         >
@@ -470,6 +470,15 @@ const TYPE_STYLES = {
     iconText: 'text-rose-600 dark:text-rose-400',
     amount: 'text-rose-600 dark:text-rose-400',
   },
+} as const;
+
+// Header grup tanggal pakai tint biru lembut & transparan, senada dengan kartu
+// "Total Pemasukan" (bg-emerald-500/5 + border tipis) — cukup buat pergantian
+// hari kelihatan jelas, tanpa kesan mengkilap/berlebihan.
+const DATE_GROUP_THEME = {
+  bg: 'bg-blue-500/5 dark:bg-blue-400/5',
+  text: 'text-blue-700 dark:text-blue-400 font-semibold',
+  border: 'border-blue-600/30 dark:border-blue-400/30',
 } as const;
 
 // ============================================================================
@@ -601,7 +610,7 @@ function DateRangeFilter({
           <Button
             type="button"
             variant="outline"
-            className={cn('w-full justify-start gap-2 font-normal', !hasRange && 'text-muted-foreground')}
+            className={cn('w-full justify-start gap-2 font-normal transition-colors', !hasRange && 'text-muted-foreground')}
           >
             <CalendarIcon className="h-4 w-4 flex-shrink-0" />
             <span className="truncate">{label}</span>
@@ -668,7 +677,7 @@ function TransactionFilterBar({
   t: TFunction;
 }) {
   return (
-    <Card className="mb-6 transition-shadow duration-300 hover:shadow-md">
+    <Card className="mb-6 rounded-xl shadow-sm transition-shadow duration-300 hover:shadow-md">
       <CardContent className="p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
           <div className="flex-1 min-w-[200px]">
@@ -750,7 +759,7 @@ function TransactionFilterBar({
 
 function TransactionTableHeader({ t }: { t: TFunction }) {
   return (
-    <div className="hidden grid-cols-[64px_180px_1fr_110px_130px_84px] gap-4 border-b border-border px-4 py-2 text-xs font-medium text-muted-foreground lg:grid">
+    <div className="hidden grid-cols-[64px_180px_1fr_110px_130px_84px] gap-4 border-b border-border bg-muted/20 px-4 py-2.5 text-xs font-medium text-muted-foreground lg:grid">
       <span />
       <span className="truncate overflow-hidden whitespace-nowrap">{t('transactions.category')}</span>
       <span className="truncate overflow-hidden whitespace-nowrap">{t('transactions.description')}</span>
@@ -1579,11 +1588,11 @@ export default function TransactionsPage() {
       {loading ? (
         <div className="space-y-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full" />
+            <Skeleton key={i} className="h-16 w-full rounded-xl" />
           ))}
         </div>
       ) : filteredTransactions.length === 0 ? (
-        <Card className="animate-fade-in">
+        <Card className="animate-fade-in rounded-xl">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-secondary">
               <Filter className="h-7 w-7 text-muted-foreground/50" />
@@ -1604,12 +1613,27 @@ export default function TransactionsPage() {
             })}
           </p>
 
-          <Card className="overflow-hidden">
+          <Card className="overflow-hidden rounded-xl shadow-sm">
             <TransactionTableHeader t={t} />
             <div>
-              {groupedTransactions.map((group) => (
-                <div key={group.dateKey}>
-                  <div className="bg-muted/40 px-4 py-1.5 text-xs font-semibold text-muted-foreground">
+              {groupedTransactions.map((group, groupIndex) => (
+                <div
+                  key={group.dateKey}
+                  className={cn(
+                    'border-l-4',
+                    DATE_GROUP_THEME.border,
+                    // Garis pemisah horizontal setiap ganti hari, kecuali di grup
+                    // paling atas (biar tidak dobel sama border Card di atasnya).
+                    groupIndex !== 0 && 'border-t-2',
+                  )}
+                >
+                  <div
+                    className={cn(
+                      'px-4 py-2 text-xs font-semibold',
+                      DATE_GROUP_THEME.bg,
+                      DATE_GROUP_THEME.text,
+                    )}
+                  >
                     {getDateGroupLabel(group.date, t)}
                   </div>
 

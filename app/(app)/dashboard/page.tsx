@@ -132,23 +132,6 @@ function AnimatedCurrency({ value }: { value: number }) {
   return <>{formatCurrency(display)}</>;
 }
 
-// Titik hijau berkedip yang menandakan data di halaman ini nyala terus (auto-refresh
-// tiap 10 detik), bukan cuma dekorasi — supaya orang nggak salah kira angkanya statis.
-function LiveIndicator() {
-  return (
-    <div
-      className="flex items-center gap-1.5"
-      title="Data diperbarui otomatis setiap 10 detik"
-    >
-      <span className="relative flex h-2 w-2">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-      </span>
-      <span className="text-xs font-medium text-muted-foreground">Live</span>
-    </div>
-  );
-}
-
 function DashboardChartTooltip({
   active,
   payload,
@@ -318,35 +301,35 @@ export default function DashboardPage() {
   const [range, setRange] = useState<Range>('daily');
 
   // Summary — auto refetch tiap 10 detik, gantiin setInterval manual
-const {
-  data: summary,
-  isLoading: loading,
-  isFetching: summaryFetching,
-  refetch: refetchSummary,
-} = useQuery<DashboardSummary>({
-  queryKey: ['dashboard-summary'],
-  queryFn: getDashboardSummary,
-  refetchInterval: 10000,
-});
+  const {
+    data: summary,
+    isLoading: loading,
+    isFetching: summaryFetching,
+    refetch: refetchSummary,
+  } = useQuery<DashboardSummary>({
+    queryKey: ['dashboard-summary'],
+    queryFn: getDashboardSummary,
+    refetchInterval: 10000,
+  });
 
   // Charts — key-nya include `range`, jadi otomatis refetch tiap ganti tab daily/weekly/monthly
-const {
-  data: chartData = [],
-  isLoading: chartLoading,
-  isFetching: chartFetching,
-  refetch: refetchCharts,
-} = useQuery<ChartDataPoint[]>({
-  queryKey: ['dashboard-charts', range],
-  queryFn: () => getDashboardCharts(range),
-  refetchInterval: 10000,
-});
+  const {
+    data: chartData = [],
+    isLoading: chartLoading,
+    isFetching: chartFetching,
+    refetch: refetchCharts,
+  } = useQuery<ChartDataPoint[]>({
+    queryKey: ['dashboard-charts', range],
+    queryFn: () => getDashboardCharts(range),
+    refetchInterval: 10000,
+  });
 
-async function handleRefresh() {
-  await Promise.all([
-    refetchSummary(),
-    refetchCharts(),
-  ]);
-}
+  async function handleRefresh() {
+    await Promise.all([
+      refetchSummary(),
+      refetchCharts(),
+    ]);
+  }
 
   const profitPositive = (summary?.profitLoss ?? 0) >= 0;
 
@@ -395,7 +378,7 @@ async function handleRefresh() {
     },
     expense: {
       label: t('dashboard.expenses'),
-      color: '#93c5fd',
+      color: '#60a5fa',
     },
   } satisfies ChartConfig;
 
@@ -404,11 +387,11 @@ async function handleRefresh() {
   const xAxisInterval =
     chartData.length > 7 ? Math.ceil(chartData.length / 6) - 1 : 0;
 
- const ranges: Range[] = ['daily', 'weekly', 'monthly'];
-const activeRangeIndex = ranges.indexOf(range);
+  const ranges: Range[] = ['daily', 'weekly', 'monthly'];
+  const activeRangeIndex = ranges.indexOf(range);
 
   const refreshing =
-  summaryFetching || chartFetching;
+    summaryFetching || chartFetching;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
@@ -417,7 +400,6 @@ const activeRangeIndex = ranges.indexOf(range);
         description={t('dashboard.subtitle')}
       >
         <div className="flex items-center gap-3">
-          <LiveIndicator />
           <Button
             variant="outline"
             size="sm"
@@ -498,10 +480,7 @@ const activeRangeIndex = ranges.indexOf(range);
         <CardHeader className="p-4 sm:p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="flex items-center gap-2.5">
-                <CardTitle>{t('dashboard.transactionOverview')}</CardTitle>
-                <LiveIndicator />
-              </div>
+              <CardTitle>{t('dashboard.transactionOverview')}</CardTitle>
               <CardDescription>{t('dashboard.transactionOverviewSubtitle')}</CardDescription>
             </div>
             {/* Pill-style range toggle dengan indikator yang geser mulus antar pilihan */}
@@ -549,7 +528,7 @@ const activeRangeIndex = ranges.indexOf(range);
                   </linearGradient>
                 </defs>
 
-                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.4} />
+                <CartesianGrid strokeDasharray="0" vertical={false} stroke="#e5e7eb" className="dark:opacity-20" yAxisId="income" />
 
                 {/* Sumbu-X: paksa jarak antar label biar nggak cuma nongol awal/akhir */}
                 <XAxis
@@ -557,7 +536,7 @@ const activeRangeIndex = ranges.indexOf(range);
                   tickLine={false}
                   axisLine={false}
                   interval={xAxisInterval}
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                   padding={{ left: 8, right: 8 }}
                 />
 
@@ -567,7 +546,7 @@ const activeRangeIndex = ranges.indexOf(range);
                   tickLine={false}
                   axisLine={false}
                   width={64}
-                  tick={{ fontSize: 11, fill: 'var(--color-income)' }}
+                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                   tickFormatter={(v) => formatCurrencyCompact(v)}
                 />
 
@@ -580,26 +559,26 @@ const activeRangeIndex = ranges.indexOf(range);
                   tickLine={false}
                   axisLine={false}
                   width={64}
-                  tick={{ fontSize: 11, fill: 'var(--color-expense)' }}
+                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                   tickFormatter={(v) => formatCurrencyCompact(v)}
                 />
 
-               <ChartTooltip 
-                  cursor={{ 
-                    stroke: 'hsl(var(--border))', 
-                    strokeWidth: 1, 
-                    strokeDasharray: '4 4', 
-                  }} 
-                  content={ 
-                    <DashboardChartTooltip 
-                      incomeLabel={t( 
-                        'dashboard.income', 
-                      )} 
-                      expenseLabel={t( 
-                        'dashboard.expenses', 
-                      )} 
-                    /> 
-                  } 
+                <ChartTooltip
+                  cursor={{
+                    stroke: 'hsl(var(--border))',
+                    strokeWidth: 1,
+                    strokeDasharray: '4 4',
+                  }}
+                  content={
+                    <DashboardChartTooltip
+                      incomeLabel={t(
+                        'dashboard.income',
+                      )}
+                      expenseLabel={t(
+                        'dashboard.expenses',
+                      )}
+                    />
+                  }
                 />
                 <ChartLegend content={<ChartLegendContent />} />
 
@@ -609,7 +588,7 @@ const activeRangeIndex = ranges.indexOf(range);
                   dataKey="income"
                   name={t('dashboard.income')}
                   stroke="var(--color-income)"
-                  strokeWidth={2.5}
+                  strokeWidth={2}
                   fill="url(#incomeGrad)"
                   dot={{ r: 3, strokeWidth: 0, fill: 'var(--color-income)' }}
                   activeDot={{ r: 5, strokeWidth: 2, stroke: 'var(--background)', fill: 'var(--color-income)' }}

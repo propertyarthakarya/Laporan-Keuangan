@@ -48,38 +48,63 @@ import {
   CircleArrowDown as ArrowDownCircle,
   Loader as Loader2,
   ChevronRight,
+  TriangleAlert as AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type CategoryKind = 'main' | 'sub';
 
+/* ------------------------------------------------------------------ */
+/*  Tone tokens — emerald untuk income, rose untuk expense, senada     */
+/*  dengan halaman Laporan supaya konsisten di seluruh aplikasi.       */
+/* ------------------------------------------------------------------ */
+
+const tone = {
+  income: {
+    chip: 'bg-emerald-50 dark:bg-emerald-950/40',
+    text: 'text-emerald-600 dark:text-emerald-400',
+    dot: 'bg-emerald-500',
+    badge: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400',
+    ring: 'ring-emerald-500/10',
+  },
+  expense: {
+    chip: 'bg-rose-50 dark:bg-rose-950/40',
+    text: 'text-rose-600 dark:text-rose-400',
+    dot: 'bg-rose-500',
+    badge: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400',
+    ring: 'ring-rose-500/10',
+  },
+} as const;
+
+// Grid kategori utama: dibatasi maksimal 2 kolom (tidak ikut ke 3 seperti
+// subkategori) karena kartunya lebih besar/detail dan 2 kolom lebih nyaman dibaca.
+const CATEGORY_GRID = 'grid grid-cols-1 gap-2.5 sm:grid-cols-2';
+
+// Grid subkategori: dibatasi maksimal 2 kolom, sama seperti kategori utama.
+const SUB_CATEGORY_GRID = 'grid grid-cols-1 gap-2 sm:grid-cols-2';
+
 function SectionHeader({
   icon,
   label,
   count,
-  tone,
+  kind,
 }: {
   icon: React.ReactNode;
   label: string;
   count: number;
-  tone: 'income' | 'expense';
+  kind: 'income' | 'expense';
 }) {
+  const t = tone[kind];
   return (
-    <h2 className="mb-3 flex flex-wrap items-center gap-2 text-sm font-semibold text-muted-foreground">
-      {icon}
-      <span>{label}</span>
-
-      <span
-        className={cn(
-          'rounded-full px-2 py-0.5 text-xs font-bold tabular-nums',
-          tone === 'income'
-            ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400'
-            : 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400',
-        )}
-      >
+    <div className="mb-3 flex items-center gap-2.5">
+      <div className={cn('flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl', t.chip)}>
+        {icon}
+      </div>
+      <h2 className="text-sm font-semibold">{label}</h2>
+      <span className={cn('rounded-full px-2 py-0.5 text-xs font-bold tabular-nums', t.badge)}>
         {count}
       </span>
-    </h2>
+    </div>
   );
 }
 
@@ -370,62 +395,60 @@ export default function CategoriesPage() {
     }
 
     return (
-      <div className="mt-2 ml-5 border-l-2 border-border pl-3 sm:ml-8">
-        <div className="space-y-2">
-          {children.map((child) => (
-            <Card key={child.id} className="hover:shadow-sm">
-              <CardContent className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-3.5">
-                <div
-                  className={cn(
-                    'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg',
-                    child.type === 'INCOME'
-                      ? 'bg-green-100 dark:bg-green-950'
-                      : 'bg-red-100 dark:bg-red-950',
-                  )}
-                >
-                  {child.type === 'INCOME' ? (
-                    <ArrowUpCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-                  ) : (
-                    <ArrowDownCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
-                    {child.categoryName}
-                  </p>
-
-                  <span className="text-xs text-muted-foreground">
-                    Subkategori
-                  </span>
-                </div>
-
-                <div className="flex flex-shrink-0 gap-0.5">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    title="Edit subkategori"
-                    aria-label={`Edit subkategori ${child.categoryName}`}
-                    onClick={() => openEdit(child)}
+      <div className="mt-2 ml-5 border-l-2 border-border pl-3 sm:ml-9">
+        <div className={SUB_CATEGORY_GRID}>
+          {children.map((child) => {
+            const kind = child.type === 'INCOME' ? 'income' : 'expense';
+            const childTone = tone[kind];
+            return (
+              <Card key={child.id} className="border-border/60 transition-shadow hover:shadow-sm">
+                <CardContent className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-3.5">
+                  <div
+                    className={cn(
+                      'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg',
+                      childTone.chip,
+                    )}
                   >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
+                    {child.type === 'INCOME' ? (
+                      <ArrowUpCircle className={cn('h-4 w-4', childTone.text)} />
+                    ) : (
+                      <ArrowDownCircle className={cn('h-4 w-4', childTone.text)} />
+                    )}
+                  </div>
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    title="Hapus subkategori"
-                    aria-label={`Hapus subkategori ${child.categoryName}`}
-                    onClick={() => setDeleteTarget(child)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {child.categoryName}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-shrink-0 gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      title="Edit subkategori"
+                      aria-label={`Edit subkategori ${child.categoryName}`}
+                      onClick={() => openEdit(child)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      title="Hapus subkategori"
+                      aria-label={`Hapus subkategori ${child.categoryName}`}
+                      onClick={() => setDeleteTarget(child)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
     );
@@ -443,16 +466,18 @@ export default function CategoriesPage() {
     const children = cat.children ?? [];
     const hasChildren = children.length > 0;
     const isExpanded = !!expanded[cat.id];
+    const kind = cat.type === 'INCOME' ? 'income' : 'expense';
+    const catTone = tone[kind];
 
     return (
       <div key={cat.id}>
-        <Card className="group transition-shadow hover:shadow-sm">
+        <Card className={cn('group border-border/60 shadow-sm ring-1 transition-all hover:shadow-md', catTone.ring)}>
           <CardContent className="flex items-center gap-2.5 p-3 sm:gap-3 sm:p-4">
             {hasChildren ? (
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 flex-shrink-0"
+                className="h-8 w-8 flex-shrink-0 rounded-full"
                 onClick={() => toggleExpanded(cat.id)}
                 aria-label={
                   isExpanded ? 'Collapse category' : 'Expand category'
@@ -460,7 +485,7 @@ export default function CategoriesPage() {
               >
                 <ChevronRight
                   className={cn(
-                    'h-4 w-4 transition-transform',
+                    'h-4 w-4 transition-transform duration-200',
                     isExpanded && 'rotate-90',
                   )}
                 />
@@ -472,15 +497,13 @@ export default function CategoriesPage() {
             <div
               className={cn(
                 'flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl sm:h-10 sm:w-10',
-                cat.type === 'INCOME'
-                  ? 'bg-green-100 dark:bg-green-950'
-                  : 'bg-red-100 dark:bg-red-950',
+                catTone.chip,
               )}
             >
               {cat.type === 'INCOME' ? (
-                <ArrowUpCircle className="h-4 w-4 text-green-600 dark:text-green-400 sm:h-5 sm:w-5" />
+                <ArrowUpCircle className={cn('h-4 w-4 sm:h-5 sm:w-5', catTone.text)} />
               ) : (
-                <ArrowDownCircle className="h-4 w-4 text-red-600 dark:text-red-400 sm:h-5 sm:w-5" />
+                <ArrowDownCircle className={cn('h-4 w-4 sm:h-5 sm:w-5', catTone.text)} />
               )}
             </div>
 
@@ -491,7 +514,7 @@ export default function CategoriesPage() {
                 </p>
 
                 {hasChildren && (
-                  <Badge variant="secondary" className="text-[10px]">
+                  <Badge variant="secondary" className="text-[10px] font-normal">
                     {children.length} sub
                   </Badge>
                 )}
@@ -527,7 +550,7 @@ export default function CategoriesPage() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                 title="Hapus kategori"
                 aria-label={`Hapus kategori ${cat.categoryName}`}
                 onClick={() => setDeleteTarget(cat)}
@@ -544,35 +567,22 @@ export default function CategoriesPage() {
   }
 
   function EmptyState({
-    tone,
+    kind,
     onAdd,
   }: {
-    tone: 'income' | 'expense';
+    kind: 'income' | 'expense';
     onAdd: () => void;
   }) {
+    const emptyTone = tone[kind];
     return (
-      <Card className="border-dashed">
+      <Card className="border-dashed border-border/60">
         <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-          <div
-            className={cn(
-              'flex h-12 w-12 items-center justify-center rounded-full',
-              tone === 'income'
-                ? 'bg-green-100 dark:bg-green-950'
-                : 'bg-red-100 dark:bg-red-950',
-            )}
-          >
-            <Tags
-              className={cn(
-                'h-5 w-5',
-                tone === 'income'
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-red-600 dark:text-red-400',
-              )}
-            />
+          <div className={cn('flex h-12 w-12 items-center justify-center rounded-full', emptyTone.chip)}>
+            <Tags className={cn('h-5 w-5', emptyTone.text)} />
           </div>
 
           <p className="text-sm text-muted-foreground">
-            {tone === 'income'
+            {kind === 'income'
               ? t('categories.noIncomeCategories')
               : t('categories.noExpenseCategories')}
           </p>
@@ -599,7 +609,8 @@ export default function CategoriesPage() {
       </PageHeader>
 
       {error && (
-        <div className="mb-4 rounded-lg border border-border bg-secondary px-4 py-3 text-sm text-foreground">
+        <div className="mb-4 flex items-center gap-2.5 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <AlertTriangle className="h-4 w-4 flex-shrink-0" />
           {error}
         </div>
       )}
@@ -607,21 +618,21 @@ export default function CategoriesPage() {
       {loading ? (
         <div className="space-y-8">
           <div>
-            <Skeleton className="mb-3 h-5 w-32" />
+            <Skeleton className="mb-3 h-8 w-40 rounded-xl" />
 
-            <div className="space-y-2">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-20" />
+            <div className={CATEGORY_GRID}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-[68px] rounded-xl sm:h-[76px]" />
               ))}
             </div>
           </div>
 
           <div>
-            <Skeleton className="mb-3 h-5 w-32" />
+            <Skeleton className="mb-3 h-8 w-40 rounded-xl" />
 
-            <div className="space-y-2">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-20" />
+            <div className={CATEGORY_GRID}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-[68px] rounded-xl sm:h-[76px]" />
               ))}
             </div>
           </div>
@@ -631,21 +642,19 @@ export default function CategoriesPage() {
           {/* INCOME */}
           <section>
             <SectionHeader
-              icon={
-                <ArrowUpCircle className="h-4 w-4 flex-shrink-0 text-green-600 dark:text-green-400" />
-              }
+              icon={<ArrowUpCircle className={cn('h-4 w-4', tone.income.text)} />}
               label={t('categories.incomeCategories')}
               count={incomeCats.length}
-              tone="income"
+              kind="income"
             />
 
             {incomeCats.length === 0 ? (
               <EmptyState
-                tone="income"
+                kind="income"
                 onAdd={() => openCreate('INCOME')}
               />
             ) : (
-              <div className="space-y-2.5">
+              <div className={CATEGORY_GRID}>
                 {incomeCats.map(renderCategory)}
               </div>
             )}
@@ -654,21 +663,19 @@ export default function CategoriesPage() {
           {/* EXPENSE */}
           <section>
             <SectionHeader
-              icon={
-                <ArrowDownCircle className="h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400" />
-              }
+              icon={<ArrowDownCircle className={cn('h-4 w-4', tone.expense.text)} />}
               label={t('categories.expenseCategories')}
               count={expenseCats.length}
-              tone="expense"
+              kind="expense"
             />
 
             {expenseCats.length === 0 ? (
               <EmptyState
-                tone="expense"
+                kind="expense"
                 onAdd={() => openCreate('EXPENSE')}
               />
             ) : (
-              <div className="space-y-2.5">
+              <div className={CATEGORY_GRID}>
                 {expenseCats.map(renderCategory)}
               </div>
             )}
@@ -694,7 +701,8 @@ export default function CategoriesPage() {
           </DialogHeader>
 
           {formError && (
-            <div className="rounded-lg border border-border bg-secondary px-3 py-2 text-sm text-foreground">
+            <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
               {formError}
             </div>
           )}
@@ -725,9 +733,9 @@ export default function CategoriesPage() {
                   type="button"
                   onClick={() => handleKindChange('main')}
                   className={cn(
-                    'flex flex-col items-center gap-1 rounded-lg border px-3 py-2.5 text-center text-sm font-medium transition-colors',
+                    'flex flex-col items-center gap-1.5 rounded-xl border px-3 py-3 text-center text-sm font-medium transition-all',
                     categoryKind === 'main'
-                      ? 'border-primary bg-primary/10 text-primary'
+                      ? 'border-primary bg-primary/10 text-primary shadow-sm'
                       : 'border-border text-muted-foreground hover:bg-secondary',
                   )}
                 >
@@ -740,9 +748,9 @@ export default function CategoriesPage() {
                   onClick={() => handleKindChange('sub')}
                   disabled={!anyParentAvailable}
                   className={cn(
-                    'flex flex-col items-center gap-1 rounded-lg border px-3 py-2.5 text-center text-sm font-medium transition-colors',
+                    'flex flex-col items-center gap-1.5 rounded-xl border px-3 py-3 text-center text-sm font-medium transition-all',
                     categoryKind === 'sub'
-                      ? 'border-primary bg-primary/10 text-primary'
+                      ? 'border-primary bg-primary/10 text-primary shadow-sm'
                       : 'border-border text-muted-foreground hover:bg-secondary',
                     !anyParentAvailable &&
                       'cursor-not-allowed opacity-50',
@@ -778,11 +786,17 @@ export default function CategoriesPage() {
 
                 <SelectContent>
                   <SelectItem value="INCOME">
-                    {t('categories.income')}
+                    <span className="flex items-center gap-2">
+                      <span className="h-2 w-2 flex-shrink-0 rounded-full bg-emerald-500" />
+                      {t('categories.income')}
+                    </span>
                   </SelectItem>
 
                   <SelectItem value="EXPENSE">
-                    {t('categories.expense')}
+                    <span className="flex items-center gap-2">
+                      <span className="h-2 w-2 flex-shrink-0 rounded-full bg-rose-500" />
+                      {t('categories.expense')}
+                    </span>
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -818,8 +832,8 @@ export default function CategoriesPage() {
                               className={cn(
                                 'h-2 w-2 flex-shrink-0 rounded-full',
                                 parent.type === 'INCOME'
-                                  ? 'bg-green-500'
-                                  : 'bg-red-500',
+                                  ? 'bg-emerald-500'
+                                  : 'bg-rose-500',
                               )}
                             />
                             {parent.categoryName}
@@ -897,11 +911,14 @@ export default function CategoriesPage() {
 
           {deleteTarget &&
             (deleteTarget.children?.length ?? 0) > 0 && (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
-                <span className="font-medium">Perhatian:</span> kategori ini
-                masih punya {deleteTarget.children?.length} subkategori.
-                Menghapusnya akan ikut menghapus semua subkategori di
-                dalamnya.
+              <div className="flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">
+                <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <span>
+                  <span className="font-medium">Perhatian:</span> kategori ini
+                  masih punya {deleteTarget.children?.length} subkategori.
+                  Menghapusnya akan ikut menghapus semua subkategori di
+                  dalamnya.
+                </span>
               </div>
             )}
 
