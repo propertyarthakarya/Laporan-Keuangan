@@ -12,13 +12,13 @@ const setupSchema = z.object({
   password: z.string().min(6, 'Password minimal 6 karakter'),
 });
 
-// GET /api/setup-admin -> cek apakah admin sudah ada
 router.get('/', async (_req, res: Response, next) => {
   try {
     const databaseInfo = await prisma.$queryRawUnsafe(`
       SELECT
         current_database() AS database_name,
-        current_schema() AS schema_name
+        current_schema() AS schema_name,
+        inet_server_addr() AS server_ip
     `);
 
     const tables = await prisma.$queryRawUnsafe(`
