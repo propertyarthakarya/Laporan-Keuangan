@@ -15,8 +15,23 @@ const setupSchema = z.object({
 // GET /api/setup-admin -> cek apakah admin sudah ada
 router.get('/', async (_req, res: Response, next) => {
   try {
-    const adminExists = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
-    return res.json({ setupComplete: !!adminExists });
+    const databaseInfo = await prisma.$queryRawUnsafe(`
+      SELECT
+        current_database() AS database_name,
+        current_schema() AS schema_name
+    `);
+
+    const tables = await prisma.$queryRawUnsafe(`
+      SELECT table_schema, table_name
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+      ORDER BY table_name
+    `);
+
+    return res.json({
+      databaseInfo,
+      tables,
+    });
   } catch (err) {
     next(err);
   }
