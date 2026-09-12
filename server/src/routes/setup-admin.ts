@@ -12,27 +12,14 @@ const setupSchema = z.object({
   password: z.string().min(6, 'Password minimal 6 karakter'),
 });
 
+// GET /api/setup-admin -> cek apakah admin sudah ada
 router.get('/', async (_req, res: Response, next) => {
   try {
-    const databaseInfo = await prisma.$queryRawUnsafe(`
-    SELECT
-    current_database() AS database_name,
-    current_schema() AS schema_name,
-    inet_server_addr() AS server_ip,
-    inet_server_port() AS server_port
-`);
-
-    const tables = await prisma.$queryRawUnsafe(`
-      SELECT table_schema, table_name
-      FROM information_schema.tables
-      WHERE table_schema = 'public'
-      ORDER BY table_name
-    `);
-
-    return res.json({
-      databaseInfo,
-      tables,
+    const adminExists = await prisma.user.findFirst({
+      where: { role: 'ADMIN' },
     });
+
+    return res.json({ setupComplete: !!adminExists });
   } catch (err) {
     next(err);
   }
@@ -41,9 +28,14 @@ router.get('/', async (_req, res: Response, next) => {
 // POST /api/setup-admin -> daftarkan admin pertama, lalu auto-login
 router.post('/', async (req, res: Response, next) => {
   try {
-    const adminExists = await prisma.user.findFirst({ where: { role: 'ADMIN' } });
+    const adminExists = await prisma.user.findFirst({
+      where: { role: 'ADMIN' },
+    });
+
     if (adminExists) {
-      return res.status(403).json({ error: 'Admin sudah terdaftar. Setup tidak bisa diulang.' });
+      return res.status(403).json({
+        error: 'Admin sudah terdaftar. Setup tidak bisa diulang.',
+      });
     }
 
     const { name, email, password } = setupSchema.parse(req.body);
@@ -51,10 +43,19 @@ router.post('/', async (req, res: Response, next) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await prisma.user.create({
-      data: { name, email: email.toLowerCase(), password: hashedPassword, role: 'ADMIN' },
+      data: {
+        name,
+        email: email.toLowerCase(),
+        password: hashedPassword,
+        role: 'ADMIN',
+      },
     });
 
-    const token = signToken({ id: user.id, email: user.email, role: user.role });
+    const token = signToken({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
 
     res.cookie(TOKEN_COOKIE, token, {
       httpOnly: true,
@@ -65,7 +66,12 @@ router.post('/', async (req, res: Response, next) => {
 
     return res.status(201).json({
       message: 'Admin berhasil dibuat.',
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
     });
   } catch (err) {
     next(err);
