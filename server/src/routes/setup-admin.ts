@@ -15,11 +15,12 @@ const setupSchema = z.object({
 router.get('/', async (_req, res: Response, next) => {
   try {
     const databaseInfo = await prisma.$queryRawUnsafe(`
-      SELECT
-        current_database() AS database_name,
-        current_schema() AS schema_name,
-        inet_server_addr() AS server_ip
-    `);
+    SELECT
+    current_database() AS database_name,
+    current_schema() AS schema_name,
+    inet_server_addr() AS server_ip,
+    inet_server_port() AS server_port
+`);
 
     const tables = await prisma.$queryRawUnsafe(`
       SELECT table_schema, table_name
