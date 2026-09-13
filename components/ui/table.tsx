@@ -20,7 +20,11 @@ const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-  <thead ref={ref} className={cn('[&_tr]:border-b', className)} {...props} />
+  <thead
+    ref={ref}
+    className={cn('[&_tr]:border-b dark:[&_tr]:border-white/10', className)}
+    {...props}
+  />
 ));
 TableHeader.displayName = 'TableHeader';
 
@@ -44,6 +48,7 @@ const TableFooter = React.forwardRef<
     ref={ref}
     className={cn(
       'border-t bg-muted/50 font-medium [&>tr]:last:border-b-0',
+      'dark:border-white/10 dark:bg-white/[0.04] dark:[backdrop-filter:blur(12px)]',
       className
     )}
     {...props}
@@ -59,6 +64,8 @@ const TableRow = React.forwardRef<
     ref={ref}
     className={cn(
       'border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted',
+      // Glass hover/selected — cuma dark mode, garis kaca tipis nyala pas row disorot
+      'dark:border-white/10 dark:hover:bg-white/[0.05] dark:hover:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] dark:data-[state=selected]:bg-white/[0.08]',
       className
     )}
     {...props}
@@ -73,7 +80,7 @@ const TableHead = React.forwardRef<
   <th
     ref={ref}
     className={cn(
-      'h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0',
+      'h-12 px-4 text-left align-middle font-medium text-muted-foreground dark:text-white/60 [&:has([role=checkbox])]:pr-0',
       className
     )}
     {...props}
@@ -99,7 +106,7 @@ const TableCaption = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <caption
     ref={ref}
-    className={cn('mt-4 text-sm text-muted-foreground', className)}
+    className={cn('mt-4 text-sm text-muted-foreground dark:text-white/60', className)}
     {...props}
   />
 ));

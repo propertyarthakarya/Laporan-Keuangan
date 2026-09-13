@@ -8,13 +8,17 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
+        // Kept solid: strong-signal badges (e.g. status) need clear contrast,
+        // not softened glass.
         default:
           'border-transparent bg-primary text-primary-foreground hover:bg-primary/80',
-        secondary:
-          'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
         destructive:
           'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
-        outline: 'text-foreground',
+        // Glassmorphism: partial transparency + backdrop blur + subtle bright border
+        secondary:
+          'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80 dark:border-white/10 dark:bg-white/[0.08] dark:text-white dark:[backdrop-filter:blur(12px)] dark:hover:bg-white/[0.14]',
+        outline:
+          'text-foreground dark:border-white/20 dark:bg-white/[0.05] dark:text-white dark:[backdrop-filter:blur(12px)]',
       },
     },
     defaultVariants: {

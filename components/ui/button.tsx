@@ -9,14 +9,19 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
+        // Kept solid: primary/destructive actions need strong visual weight,
+        // not the softened contrast of glass.
         default: 'bg-primary text-primary-foreground hover:bg-primary/90',
         destructive:
           'bg-destructive text-destructive-foreground hover:bg-destructive/90',
+        // Glassmorphism: partial transparency + backdrop blur + subtle bright border,
+        // matching the toggle buttons in app-shell.tsx
         outline:
-          'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
+          'border border-input bg-background hover:bg-accent hover:text-accent-foreground dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:[backdrop-filter:blur(16px)] dark:hover:bg-white/[0.1]',
         secondary:
-          'bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        ghost: 'hover:bg-accent hover:text-accent-foreground',
+          'bg-secondary text-secondary-foreground hover:bg-secondary/80 dark:border dark:border-white/10 dark:bg-white/[0.05] dark:text-white dark:[backdrop-filter:blur(16px)] dark:hover:bg-white/[0.1]',
+        ghost:
+          'hover:bg-accent hover:text-accent-foreground dark:hover:bg-white/[0.08] dark:hover:text-white',
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {

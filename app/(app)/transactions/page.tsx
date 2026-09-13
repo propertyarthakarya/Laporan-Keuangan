@@ -84,6 +84,46 @@ const ITEMS_PER_PAGE = 10;
 type TFunction = ReturnType<typeof useLanguage>['t'];
 
 // ============================================================================
+// Background — Glassmorphism + Noise Texture
+// ----------------------------------------------------------------------------
+// Komponen yang sama persis dengan yang dipakai di halaman Dashboard, supaya
+// nuansa visualnya konsisten di seluruh aplikasi. Cuma dekorasi di belakang
+// layar — tidak menyentuh state, query, atau fitur apa pun di halaman ini.
+// ============================================================================
+
+const NOISE_BG =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
+
+function PageBackground() {
+  return (
+    <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+      {/* 1. Dasar solid — abu sangat muda di light mode, nyaris hitam di dark mode */}
+      <div className="absolute inset-0 bg-[#f4f4f6] dark:bg-[#0a0a0c]" />
+
+      {/* 2a. Glow diagonal kiri-atas */}
+      <div className="absolute -top-24 -left-24 h-[420px] w-[420px] rotate-[-20deg] bg-blue-200/25 blur-[110px] dark:bg-white/[0.10]" />
+
+      {/* 2b. Glow lembut menyebar di kanan-tengah */}
+      <div className="absolute top-1/3 right-[-10%] h-[520px] w-[620px] -translate-y-1/2 rounded-full bg-indigo-200/20 blur-[130px] dark:bg-white/[0.07]" />
+
+      {/* 2c. Glow tengah */}
+      <div className="absolute -top-32 left-1/2 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-black/[0.04] blur-[120px] dark:bg-white/[0.1]" />
+
+      {/* 3. Noise / grain halus — dipakai di kedua mode, opacity beda jauh */}
+      <div
+        className="absolute inset-0 opacity-[0.015] mix-blend-multiply dark:opacity-[0.05] dark:mix-blend-overlay"
+        style={{ backgroundImage: NOISE_BG, backgroundRepeat: 'repeat' }}
+      />
+    </div>
+  );
+}
+
+// Class glass yang dipakai berulang di kartu-kartu halaman ini — biar konsisten
+// & gampang diubah dari satu tempat kalau nanti mau di-tweak.
+const GLASS_CARD =
+  'border-white/60 bg-white/60 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] [backdrop-filter:blur(20px)_saturate(150%)] dark:border-white/10 dark:bg-white/[0.05] dark:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.4)]';
+
+// ============================================================================
 // Sub-komponen: Category picker untuk FORM tambah/edit (drill-down, dibatasi type)
 // ============================================================================
 
@@ -507,7 +547,7 @@ function TransactionSummary({
 
   return (
     <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-      <Card className="border-emerald-600/20 bg-emerald-500/5 dark:border-emerald-400/20 dark:bg-emerald-400/5">
+      <Card className={cn(GLASS_CARD, 'border-emerald-600/20 bg-emerald-500/5 dark:border-emerald-400/20 dark:bg-emerald-400/5')}>
         <CardContent className="flex items-center gap-3 p-4">
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 dark:bg-emerald-400/10">
             <ArrowUpCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
@@ -521,7 +561,7 @@ function TransactionSummary({
         </CardContent>
       </Card>
 
-      <Card className="border-rose-600/20 bg-rose-500/5 dark:border-rose-400/20 dark:bg-rose-400/5">
+      <Card className={cn(GLASS_CARD, 'border-rose-600/20 bg-rose-500/5 dark:border-rose-400/20 dark:bg-rose-400/5')}>
         <CardContent className="flex items-center gap-3 p-4">
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-rose-500/10 dark:bg-rose-400/10">
             <ArrowDownCircle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
@@ -535,7 +575,7 @@ function TransactionSummary({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className={GLASS_CARD}>
         <CardContent className="flex items-center gap-3 p-4">
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-secondary">
             <Wallet className="h-4 w-4 text-foreground" />
@@ -677,7 +717,7 @@ function TransactionFilterBar({
   t: TFunction;
 }) {
   return (
-    <Card className="mb-6 rounded-xl shadow-sm transition-shadow duration-300 hover:shadow-md">
+    <Card className={cn(GLASS_CARD, 'mb-6 rounded-xl transition-shadow duration-300 hover:shadow-md')}>
       <CardContent className="p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
           <div className="flex-1 min-w-[200px]">
@@ -1550,7 +1590,10 @@ export default function TransactionsPage() {
 
   // --- Render ---
   return (
-    <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
+    <div className="relative isolate p-4 sm:p-6 lg:p-8 animate-fade-in">
+      {/* Ambient background — glassmorphism + noise, sama seperti halaman Dashboard */}
+      <PageBackground />
+
       <PageHeader title={t('transactions.title')} description={t('transactions.subtitle')}>
         {canEdit && (
           <Button onClick={openCreateDialog} className="transition-transform hover:scale-[1.02]">
@@ -1592,7 +1635,7 @@ export default function TransactionsPage() {
           ))}
         </div>
       ) : filteredTransactions.length === 0 ? (
-        <Card className="animate-fade-in rounded-xl">
+        <Card className={cn(GLASS_CARD, 'animate-fade-in rounded-xl')}>
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-secondary">
               <Filter className="h-7 w-7 text-muted-foreground/50" />
@@ -1613,7 +1656,7 @@ export default function TransactionsPage() {
             })}
           </p>
 
-          <Card className="overflow-hidden rounded-xl shadow-sm">
+          <Card className={cn(GLASS_CARD, 'overflow-hidden rounded-xl')}>
             <TransactionTableHeader t={t} />
             <div>
               {groupedTransactions.map((group, groupIndex) => (

@@ -22,8 +22,8 @@ model Category {
   id           String          @id @default(uuid())
   categoryName String
   type         TransactionType
-  createdAt    DateTime        @default(now())
   parentId     String?
+  createdAt    DateTime        @default(now())
   parent       Category?       @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
   children     Category[]      @relation("CategoryHierarchy")
   transactions Transaction[]
@@ -39,9 +39,9 @@ model Transaction {
   description     String?
   amount          Decimal         @db.Decimal(14, 2)
   transactionType TransactionType
+  uniqueCode      String?
   createdById     String
   createdAt       DateTime        @default(now())
-  uniqueCode      String?
   category        Category        @relation(fields: [categoryId], references: [id])
   createdBy       User            @relation("UserTransactions", fields: [createdById], references: [id])
 

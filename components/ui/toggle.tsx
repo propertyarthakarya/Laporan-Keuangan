@@ -7,13 +7,17 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const toggleVariants = cva(
-  'inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-muted hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-accent data-[state=on]:text-accent-foreground',
+  // Selected segment: solid white pill (kept solid, not glass, for legibility
+  // and to match the "Daily/Weekly/Monthly" selector look). Unselected
+  // segments sit transparent on the glass track from ToggleGroup and get a
+  // soft highlight on hover.
+  'inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors hover:bg-muted hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=on]:bg-accent data-[state=on]:text-accent-foreground dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white data-[state=on]:dark:bg-white data-[state=on]:dark:text-[#0a0a0f] data-[state=on]:dark:hover:bg-white',
   {
     variants: {
       variant: {
         default: 'bg-transparent',
         outline:
-          'border border-input bg-transparent hover:bg-accent hover:text-accent-foreground',
+          'border border-input bg-transparent hover:bg-accent hover:text-accent-foreground dark:border-white/10',
       },
       size: {
         default: 'h-10 px-3',

@@ -67,29 +67,27 @@ function RupiahIcon({ className }: { className?: string }) {
 
 // Kartu ringkasan diberi warna sesuai makna finansialnya (bukan sekadar dekorasi):
 // hijau = uang masuk, merah = uang keluar, indigo = posisi kas, kuning = hasil akhir.
+// Dark mode dibikin senada abu/putih (seperti kaca iOS), bukan glow warna-warni per kartu —
+// warna cuma dipakai di ikon kecil, biar tetap informatif tanpa keliatan berlebihan.
 const ACCENT_STYLES: Record<
   Accent,
-  { iconBg: string; iconText: string; hoverRing: string }
+  { iconBg: string; iconText: string }
 > = {
   emerald: {
     iconBg: 'bg-emerald-500/10 dark:bg-emerald-400/10',
     iconText: 'text-emerald-600 dark:text-emerald-400',
-    hoverRing: 'hover:border-emerald-500/30 hover:shadow-emerald-500/10',
   },
   rose: {
     iconBg: 'bg-rose-500/10 dark:bg-rose-400/10',
     iconText: 'text-rose-600 dark:text-rose-400',
-    hoverRing: 'hover:border-rose-500/30 hover:shadow-rose-500/10',
   },
   indigo: {
     iconBg: 'bg-indigo-500/10 dark:bg-indigo-400/10',
     iconText: 'text-indigo-600 dark:text-indigo-400',
-    hoverRing: 'hover:border-indigo-500/30 hover:shadow-indigo-500/10',
   },
   amber: {
     iconBg: 'bg-amber-500/10 dark:bg-amber-400/10',
     iconText: 'text-amber-600 dark:text-amber-400',
-    hoverRing: 'hover:border-amber-500/30 hover:shadow-amber-500/10',
   },
 };
 
@@ -238,7 +236,7 @@ function DashboardChartTooltip({
   }
 
   return (
-    <div className="min-w-[280px] max-w-[340px] rounded-xl border bg-background p-3 shadow-xl">
+    <div className="min-w-[280px] max-w-[340px] rounded-xl border bg-background p-3 shadow-xl dark:border-white/10 dark:bg-zinc-950/95 dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] dark:backdrop-blur-xl">
       {/* Tanggal */}
       <p className="mb-3 text-xs font-semibold text-foreground">
         {point.label}
@@ -291,6 +289,38 @@ function DashboardChartTooltip({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================================
+// BACKGROUND — Glassmorphism + Noise Texture
+// ============================================================================
+const NOISE_BG =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
+
+function DashboardBackground() {
+  return (
+    <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+      {/* 1. Dasar solid — abu sangat muda di light mode (biar beda tipis dari putih card),
+             nyaris hitam di dark mode */}
+      <div className="absolute inset-0 bg-[#f4f4f6] dark:bg-[#0a0a0c]" />
+
+      {/* 2a. Glow diagonal kiri-atas — pastel biru muda di light mode, putih di dark mode */}
+      <div className="absolute -top-24 -left-24 h-[420px] w-[420px] rotate-[-20deg] bg-blue-200/25 blur-[110px] dark:bg-white/[0.10] dark:bg-none" />
+
+      {/* 2b. Glow lembut menyebar di kanan-tengah */}
+      <div className="absolute top-1/3 right-[-10%] h-[520px] w-[620px] -translate-y-1/2 rounded-full bg-indigo-200/20 blur-[130px] dark:bg-white/[0.07]" />
+
+      {/* 2c. Glow tengah — dipertahankan dari versi sebelumnya */}
+      <div className="absolute -top-32 left-1/2 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-black/[0.04] blur-[120px] dark:bg-white/[0.1]" />
+
+      {/* 3. Noise / grain halus — dipakai di KEDUA mode, cuma opacity-nya jauh lebih rendah
+             di light mode (0.015) supaya tetap kerasa "kaca" tanpa bikin putihnya kotor */}
+      <div
+        className="absolute inset-0 opacity-[0.015] mix-blend-multiply dark:opacity-[0.05] dark:mix-blend-overlay"
+        style={{ backgroundImage: NOISE_BG, backgroundRepeat: 'repeat' }}
+      />
     </div>
   );
 }
@@ -394,7 +424,10 @@ export default function DashboardPage() {
     summaryFetching || chartFetching;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
+    <div className="relative isolate p-4 sm:p-6 lg:p-8 animate-fade-in">
+      {/* Ambient background — glassmorphism + noise, lihat komponen DashboardBackground di atas */}
+      <DashboardBackground />
+
       <PageHeader
         title={`${t('dashboard.welcome')}, ${user?.name?.split(' ')[0]}`}
         description={t('dashboard.subtitle')}
@@ -405,7 +438,7 @@ export default function DashboardPage() {
             size="sm"
             onClick={handleRefresh}
             disabled={refreshing}
-            className="w-full sm:w-auto"
+            className="w-full border-white/60 bg-white/50 backdrop-blur-xl hover:bg-white/70 sm:w-auto dark:border-white/10 dark:bg-white/[0.03] dark:hover:bg-white/[0.08]"
           >
             <RefreshCw
               className={cn(
@@ -422,7 +455,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         {loading
           ? Array.from({ length: 4 }).map((_, i) => (
-              <Card key={i}>
+              <Card key={i} className="border-white/60 bg-white/60 [backdrop-filter:blur(20px)_saturate(150%)] dark:border-white/10 dark:bg-white/[0.05]">
                 <CardContent className="p-3.5 sm:p-5">
                   <Skeleton className="h-4 w-20 sm:w-24" />
                   <Skeleton className="mt-4 h-7 w-24 sm:h-8 sm:w-32" />
@@ -439,10 +472,14 @@ export default function DashboardPage() {
                   key={i}
                   className={cn(
                     'group relative animate-fade-in overflow-hidden border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg',
-                    style.hoverRing,
+                    'border-white/60 bg-white/60 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] [backdrop-filter:blur(20px)_saturate(150%)] hover:border-white/80 hover:bg-white/70',
+                    'dark:border-white/10 dark:bg-white/[0.05] dark:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.4)] dark:hover:border-white/20 dark:hover:bg-white/[0.07]',
                   )}
                   style={{ animationDelay: `${i * 60}ms` }}
                 >
+                  {/* Satu garis highlight tipis di tepi atas — item kaca di kedua mode, warnanya cuma dibalik */}
+                  <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-black/10 to-transparent dark:via-white/25" />
+
                   <CardContent className="p-3.5 sm:p-5">
                     <div className="flex items-start justify-between">
                       <div
@@ -476,7 +513,8 @@ export default function DashboardPage() {
       </div>
 
       {/* Chart */}
-      <Card className="mt-4 sm:mt-8">
+      <Card className="relative mt-4 overflow-hidden border-white/60 bg-white/60 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] [backdrop-filter:blur(20px)_saturate(150%)] sm:mt-8 dark:border-white/10 dark:bg-white/[0.05] dark:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.4)]">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-black/10 to-transparent dark:via-white/25" />
         <CardHeader className="p-4 sm:p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -484,9 +522,9 @@ export default function DashboardPage() {
               <CardDescription>{t('dashboard.transactionOverviewSubtitle')}</CardDescription>
             </div>
             {/* Pill-style range toggle dengan indikator yang geser mulus antar pilihan */}
-            <div className="relative grid grid-cols-3 gap-1 rounded-full bg-gray-100 p-1 dark:bg-secondary">
+            <div className="relative grid grid-cols-3 gap-1 rounded-full border border-white/60 bg-white/40 p-1 backdrop-blur-xl dark:border-white/10 dark:bg-secondary">
               <div
-                className="absolute inset-y-1 rounded-full bg-black shadow-sm transition-transform duration-300 ease-out dark:bg-white"
+                className="absolute inset-y-1 rounded-full bg-black shadow-sm transition-transform duration-300 ease-out dark:bg-white dark:shadow-[0_0_20px_rgba(255,255,255,0.35)]"
                 style={{
                   width: `calc(${100 / ranges.length}% - 0.25rem)`,
                   transform: `translateX(calc(${activeRangeIndex} * (100% + 0.0833rem)))`,

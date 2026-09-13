@@ -9,7 +9,9 @@ const Card = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      'rounded-lg border bg-card text-card-foreground shadow-sm',
+      // Glassmorphism: partial transparency + backdrop blur + subtle bright border,
+      // matching the sidebar/header recipe in app-shell.tsx
+      'rounded-lg border bg-card text-card-foreground shadow-sm dark:border-white/[0.12] dark:bg-white/[0.05] dark:text-white dark:[backdrop-filter:blur(24px)_saturate(160%)] dark:shadow-[0_8px_32px_-8px_rgba(0,0,0,0.5)]',
       className
     )}
     {...props}
@@ -50,7 +52,7 @@ const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <p
     ref={ref}
-    className={cn('text-sm text-muted-foreground', className)}
+    className={cn('text-sm text-muted-foreground dark:text-white/60', className)}
     {...props}
   />
 ));
@@ -70,7 +72,10 @@ const CardFooter = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
-    className={cn('flex items-center p-6 pt-0', className)}
+    className={cn(
+      'flex items-center p-6 pt-0 dark:border-t dark:border-white/10',
+      className
+    )}
     {...props}
   />
 ));

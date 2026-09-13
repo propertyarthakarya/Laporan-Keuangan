@@ -51,7 +51,10 @@ function LanguageToggle({ className }: { className?: string }) {
       variant="outline"
       size="sm"
       onClick={toggleLanguage}
-      className={cn('gap-1.5 text-xs font-semibold', className)}
+      className={cn(
+        'gap-1.5 text-xs font-semibold dark:border-white/10 dark:bg-white/[0.04] dark:[backdrop-filter:blur(16px)] dark:hover:bg-white/[0.1]',
+        className,
+      )}
       title={language === 'en' ? 'Switch to Bahasa Indonesia' : 'Switch to English'}
     >
       <Languages className="h-3.5 w-3.5" />
@@ -79,10 +82,27 @@ function ThemeToggle({ className }: { className?: string }) {
       variant="outline"
       size="icon"
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
-      className={cn('h-9 w-9', className)}
+      className={cn(
+        'relative h-9 w-9 overflow-hidden transition-colors duration-500 active:scale-90 dark:border-white/10 dark:bg-white/[0.04] dark:[backdrop-filter:blur(16px)] dark:hover:bg-white/[0.1] dark:shadow-[0_0_0_0_rgba(255,255,255,0)] dark:hover:shadow-[0_0_16px_-2px_rgba(255,255,255,0.25)]',
+        className,
+      )}
       title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
     >
-      {isDark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+      {/* Sun & Moon selalu ke-mount bareng, ditumpuk absolute — yang animasi
+         cuma transform/opacity-nya, dipicu oleh isDark. Ini yang bikin
+         transisinya kelihatan cross-fade + rotate, bukan snap ganti icon. */}
+      <Sun
+        className={cn(
+          'absolute h-4 w-4 transition-all duration-500 ease-out',
+          isDark ? 'rotate-90 scale-0 opacity-0' : 'rotate-0 scale-100 opacity-100',
+        )}
+      />
+      <Moon
+        className={cn(
+          'absolute h-4 w-4 transition-all duration-500 ease-out',
+          isDark ? 'rotate-0 scale-100 opacity-100' : '-rotate-90 scale-0 opacity-0',
+        )}
+      />
     </Button>
   );
 }
@@ -131,14 +151,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // separate header, so it keeps showing them.
   const SidebarContent = ({ showToggles = true }: { showToggles?: boolean }) => (
     <div className="flex h-full flex-col">
-      <div className="flex h-16 items-center justify-between gap-1.5 border-b px-3">
+      <div className="flex h-16 items-center justify-between gap-1.5 border-b px-3 dark:border-white/10">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-foreground">
+          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-foreground dark:ring-1 dark:ring-white/15 dark:shadow-[0_0_20px_-4px_rgba(255,255,255,0.2)]">
             {/* bg-foreground flips color with the theme (dark box in light mode,
                light box in dark mode). Logo.svg is a dark-colored mark, so it
                needs to invert to white when the box is dark, and revert back
                to its own color when the box is light — otherwise it disappears
-               into the box in light mode. */}
+               into the box in light mode. Kept solid (not glassed) so this
+               contrast logic still holds; only a soft ring/glow was added. */}
             <Image src={logo} alt="ArthaKarya Flow" className="h-6 w-6 invert dark:invert-0" unoptimized />
           </div>
           <span className="truncate text-base font-bold tracking-tight">
@@ -170,8 +191,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className={cn(
                 'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                 active
-                  ? 'bg-foreground text-background'
-                  : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+                  ? // Glass pill for the active item — toned down: thinner gradient,
+                    // softer border, and the outward glow removed so it reads as a
+                    // subtle frosted pill instead of a glowing highlight.
+                    'border border-black/10 bg-gradient-to-br from-black/[0.08] via-black/[0.04] to-transparent text-foreground [backdrop-filter:blur(16px)] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.3)] dark:border-white/10 dark:bg-gradient-to-br dark:from-white/[0.08] dark:via-white/[0.04] dark:to-transparent dark:text-white dark:shadow-[inset_0_1px_0_0_rgba(255,255,255,0.1)]'
+                  : 'text-muted-foreground hover:bg-secondary hover:text-foreground dark:hover:border dark:hover:border-white/10 dark:hover:bg-white/[0.05]',
               )}
             >
               <Icon className="h-4 w-4" />
@@ -181,10 +205,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         })}
       </nav>
 
-      <div className="border-t p-4">
-        <div className="flex items-center gap-3 rounded-lg bg-secondary px-3 py-2.5">
+      <div className="border-t p-4 dark:border-white/10">
+        <div className="flex items-center gap-3 rounded-lg bg-secondary px-3 py-2.5 dark:border dark:border-white/10 dark:bg-white/[0.05] dark:[backdrop-filter:blur(16px)]">
           <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-foreground/10 text-foreground text-xs font-semibold">
+            <AvatarFallback className="bg-foreground/10 text-foreground text-xs font-semibold dark:border dark:border-white/10">
               {initials}
             </AvatarFallback>
           </Avatar>
@@ -203,7 +227,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Button
           variant="ghost"
           onClick={() => setLogoutConfirmOpen(true)}
-          className="mt-2 w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+          className="mt-2 w-full justify-start gap-2 text-muted-foreground hover:text-foreground dark:hover:bg-white/[0.05]"
         >
           <LogOut className="h-4 w-4" />
           {t('common.signOut')}
@@ -213,22 +237,41 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="relative flex min-h-screen overflow-hidden bg-background">
+      {/* Ambient glow blobs behind the whole shell — cuma dark mode, jadi sidebar/header
+         kaca beneran nembus liat cahaya di belakangnya, bukan cuma abu-abu transparan */}
+  <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+  {/* Glow — dark mode only */}
+  <div className="absolute -top-32 -left-20 hidden h-[420px] w-[420px] rounded-full bg-indigo-500/10 blur-[160px] dark:block" />
+
+  {/* Noise / grain — konsisten kedua mode biar keliatan "berpasir" kayak metal brushed */}
+  <div
+    className="absolute inset-0 opacity-[0.06] mix-blend-multiply dark:opacity-[0.08] dark:mix-blend-overlay"
+    style={{
+      backgroundImage:
+        "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+      backgroundRepeat: 'repeat',
+    }}
+  />
+</div>
       {loggingOut && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/60 backdrop-blur-sm">
           <Image src={loadingGif} alt="Loading..." width={80} height={80} unoptimized />
         </div>
       )}
 
-      <aside className="hidden w-72 flex-shrink-0 border-r bg-card lg:flex lg:flex-col">
+      <aside className="relative z-10 hidden w-72 flex-shrink-0 border-r bg-card dark:border-white/[0.12] dark:bg-white/[0.05] dark:[backdrop-filter:blur(24px)_saturate(160%)] dark:shadow-[8px_0_40px_-12px_rgba(0,0,0,0.5)] lg:flex lg:flex-col">
+        {/* Garis highlight di tepi kanan sidebar, cuma dark mode */}
+        <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-px bg-gradient-to-b from-transparent via-white/20 to-transparent dark:block" />
         <SidebarContent />
       </aside>
 
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <div className="flex flex-1 flex-col min-w-0">
-          <header className="flex h-16 items-center justify-between border-b bg-card px-4 lg:hidden">
+        <div className="relative z-10 flex flex-1 flex-col min-w-0">
+          <header className="relative flex h-16 items-center justify-between border-b bg-card px-4 dark:border-white/[0.12] dark:bg-white/[0.05] dark:[backdrop-filter:blur(24px)_saturate(160%)] lg:hidden">
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 hidden h-px bg-gradient-to-r from-transparent via-white/20 to-transparent dark:block" />
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" className="dark:hover:bg-white/[0.08]">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
@@ -244,22 +287,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <ThemeToggle />
               <LanguageToggle />
               <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-foreground/10 text-foreground text-xs font-semibold">
+                <AvatarFallback className="bg-foreground/10 text-foreground text-xs font-semibold dark:border dark:border-white/10">
                   {initials}
                 </AvatarFallback>
               </Avatar>
             </div>
           </header>
 
-          <main className="flex-1 overflow-y-auto scrollbar-thin">{children}</main>
+          <main className="relative z-10 flex-1 overflow-y-auto scrollbar-thin">{children}</main>
         </div>
-        <SheetContent side="left" className="w-72 p-0">
+        <SheetContent
+          side="left"
+          className="w-72 p-0 dark:border-white/10 dark:bg-zinc-950/90 dark:[backdrop-filter:blur(24px)_saturate(160%)]"
+        >
           <SidebarContent showToggles={false} />
         </SheetContent>
       </Sheet>
 
       <AlertDialog open={logoutConfirmOpen} onOpenChange={setLogoutConfirmOpen}>
-        <AlertDialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl sm:w-full">
+        <AlertDialogContent className="w-[calc(100%-2rem)] max-w-md rounded-xl sm:w-full dark:border-white/10 dark:bg-zinc-950/90 dark:[backdrop-filter:blur(24px)_saturate(160%)] dark:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)]">
           <AlertDialogHeader>
             <AlertDialogTitle>
               {language === 'en' ? 'Sign out?' : 'Keluar dari akun?'}

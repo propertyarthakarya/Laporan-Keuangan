@@ -21,7 +21,11 @@ const ToggleGroup = React.forwardRef<
 >(({ className, variant, size, children, ...props }, ref) => (
   <ToggleGroupPrimitive.Root
     ref={ref}
-    className={cn('flex items-center justify-center gap-1', className)}
+    className={cn(
+      // Glass "track" wrapping the segments, matching the sidebar/card recipe
+      'flex items-center justify-center gap-1 rounded-lg p-1 dark:border dark:border-white/10 dark:bg-white/[0.04] dark:[backdrop-filter:blur(16px)]',
+      className
+    )}
     {...props}
   >
     <ToggleGroupContext.Provider value={{ variant, size }}>
@@ -47,6 +51,9 @@ const ToggleGroupItem = React.forwardRef<
           variant: context.variant || variant,
           size: context.size || size,
         }),
+        // Unselected items sit flush on the glass track; the selected state
+        // (bg-accent/data-[state=on]) is defined in toggle.tsx.
+        'dark:text-white/70 data-[state=on]:dark:text-[#0a0a0f]',
         className
       )}
       {...props}

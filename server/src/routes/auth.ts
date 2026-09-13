@@ -17,13 +17,19 @@ router.post('/login', async (req, res: Response, next) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
 
-    const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
-    if (!user) {
-      // Email tidak terdaftar sama sekali — tetap dicatat (userId null)
-      // supaya percobaan brute-force dengan email acak tetap kelihatan.
-      recordLoginActivity({ req, emailAttempted: email, status: 'FAILED', userId: null }).catch(() => {});
-      return res.status(401).json({ error: 'Invalid email or password.' });
-    }
+    const user = await prisma.user.findUnique({
+  where: { email: email.toLowerCase() }
+});
+
+console.log('LOGIN CHECK:', {
+  email: email.toLowerCase(),
+  userFound: !!user,
+});
+
+if (!user) {
+  recordLoginActivity({ req, emailAttempted: email, status: 'FAILED', userId: null }).catch(() => {});
+  return res.status(401).json({ error: 'Invalid email or password.' });
+}
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
@@ -35,13 +41,14 @@ router.post('/login', async (req, res: Response, next) => {
 
     const token = signToken({ id: user.id, email: user.email, role: user.role });
 
+    const isProduction = process.env.NODE_ENV === 'production';
+
     res.cookie(TOKEN_COOKIE, token, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'none',
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
-
     // Fire-and-forget: tidak menunda response login, dan tidak pernah
     // melempar error keluar (lihat implementasinya).
     recordLoginActivity({ req, emailAttempted: email, status: 'SUCCESS', userId: user.id }).catch(() => {});

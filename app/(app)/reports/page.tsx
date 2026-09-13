@@ -119,6 +119,45 @@ function getPresetRanges(t: ReturnType<typeof useLanguage>['t']) {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Background — Glassmorphism + Noise Texture                         */
+/*  Komponen sama persis dengan Dashboard & Transactions, supaya       */
+/*  nuansa visualnya konsisten di seluruh aplikasi.                    */
+/* ------------------------------------------------------------------ */
+
+const NOISE_BG =
+  "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")";
+
+function PageBackground() {
+  return (
+    <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+      {/* 1. Dasar solid — abu sangat muda di light mode, nyaris hitam di dark mode */}
+      <div className="absolute inset-0 bg-[#f4f4f6] dark:bg-[#0a0a0c]" />
+
+      {/* 2a. Glow diagonal kiri-atas */}
+      <div className="absolute -top-24 -left-24 h-[420px] w-[420px] rotate-[-20deg] bg-blue-200/25 blur-[110px] dark:bg-white/[0.10]" />
+
+      {/* 2b. Glow lembut menyebar di kanan-tengah */}
+      <div className="absolute top-1/3 right-[-10%] h-[520px] w-[620px] -translate-y-1/2 rounded-full bg-indigo-200/20 blur-[130px] dark:bg-white/[0.07]" />
+
+      {/* 2c. Glow tengah */}
+      <div className="absolute -top-32 left-1/2 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-black/[0.04] blur-[120px] dark:bg-white/[0.1]" />
+
+      {/* 3. Noise / grain halus — dipakai di kedua mode, opacity beda jauh */}
+      <div
+        className="absolute inset-0 opacity-[0.015] mix-blend-multiply dark:opacity-[0.05] dark:mix-blend-overlay"
+        style={{ backgroundImage: NOISE_BG, backgroundRepeat: 'repeat' }}
+      />
+    </div>
+  );
+}
+
+// Class glass dasar (transparan + blur + border tipis terang) yang dipasang di
+// atas class border/shadow tone yang sudah ada di tiap kartu — jadi warnanya
+// (ring emerald/rose/amber, dsb) tetap dipertahankan, cuma ditambah lapisan kaca.
+const GLASS_CARD =
+  'bg-white/60 [backdrop-filter:blur(20px)_saturate(150%)] dark:bg-white/[0.05] dark:border-white/10 dark:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.4)]';
+
+/* ------------------------------------------------------------------ */
 /*  Small presentational components                                    */
 /* ------------------------------------------------------------------ */
 
@@ -177,8 +216,9 @@ function SummaryCard({
   return (
     <Card
       className={cn(
-        'animate-fade-in overflow-hidden border-border/60 shadow-sm ring-1 transition-all hover:-translate-y-0.5 hover:shadow-md',
+        'animate-fade-in overflow-hidden border-border/60 ring-1 transition-all hover:-translate-y-0.5 hover:shadow-md',
         style.ring,
+        GLASS_CARD,
       )}
       style={{ animationDelay: `${delay}ms` }}
     >
@@ -370,7 +410,7 @@ function CategoryBreakdownCard({
   const groupedCategories = groupBreakdownCategories(categories);
 
   return (
-    <Card className="border-border/60 shadow-sm">
+    <Card className={cn('border-border/60', GLASS_CARD)}>
       <CardHeader className="p-4 sm:p-6">
         <div className="flex items-center gap-2.5">
           <div className={cn('flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl', chipClass)}>
@@ -1084,7 +1124,10 @@ export default function ReportsPage() {
   const isExporting = exporting !== null;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 animate-fade-in">
+    <div className="relative isolate p-4 sm:p-6 lg:p-8 animate-fade-in">
+      {/* Ambient background — glassmorphism + noise, sama seperti halaman Dashboard & Transactions */}
+      <PageBackground />
+
       <PageHeader title={t('reports.title')} description={t('reports.subtitle')}>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
           <Button variant="outline" size="sm" onClick={() => handleExport('pdf')} disabled={isExporting || loading} className="gap-1.5">
@@ -1099,7 +1142,7 @@ export default function ReportsPage() {
       </PageHeader>
 
       {/* Filter periode — pintasan cepat + kalender, rapi di mobile & desktop */}
-      <Card className="mb-5 border-border/60 shadow-sm sm:mb-6">
+      <Card className={cn('mb-5 border-border/60 sm:mb-6', GLASS_CARD)}>
         <CardContent className="p-4 sm:p-5">
           <div className="mb-4 flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-950/40">
@@ -1225,7 +1268,7 @@ export default function ReportsPage() {
           <Skeleton className="h-80 rounded-xl" />
         </div>
       ) : !report ? (
-        <Card className="border-border/60 shadow-sm">
+        <Card className={cn('border-border/60', GLASS_CARD)}>
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary">
               <PieChart className="h-5 w-5 text-muted-foreground" />
@@ -1285,7 +1328,7 @@ export default function ReportsPage() {
           {/* Donut charts: proporsi kategori, terpisah income vs expense supaya tetap ringkas
               walau jumlah kategori & subkategorinya banyak */}
           {(incomeSlices.length > 0 || expenseSlices.length > 0) && (
-            <Card className="border-border/60 shadow-sm">
+            <Card className={cn('border-border/60', GLASS_CARD)}>
               <CardHeader className="p-4 sm:p-6">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <PieChart className="h-4 w-4 flex-shrink-0" />
