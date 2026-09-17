@@ -10,10 +10,12 @@ const cors_1 = __importDefault(require("cors"));
 const auth_1 = __importDefault(require("./routes/auth"));
 const categories_1 = __importDefault(require("./routes/categories"));
 const transactions_1 = __importDefault(require("./routes/transactions"));
+const account_1 = __importDefault(require("./routes/account"));
 const dashboard_1 = __importDefault(require("./routes/dashboard"));
 const reports_1 = __importDefault(require("./routes/reports"));
 const users_1 = __importDefault(require("./routes/users"));
 const setup_admin_1 = __importDefault(require("./routes/setup-admin"));
+const upload_1 = __importDefault(require("./routes/upload"));
 const errorHandler_1 = require("./middleware/errorHandler");
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 4000;
@@ -41,10 +43,12 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', auth_1.default);
 app.use('/api/categories', categories_1.default);
 app.use('/api/transactions', transactions_1.default);
+app.use('/api/accounts', account_1.default);
 app.use('/api/dashboard', dashboard_1.default);
 app.use('/api/reports', reports_1.default);
 app.use('/api/users', users_1.default);
 app.use('/api/setup-admin', setup_admin_1.default);
+app.use('/api/upload', upload_1.default);
 // 404
 app.use((_req, res) => {
     res.status(404).json({ error: 'Endpoint not found.' });

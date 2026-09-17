@@ -17,7 +17,9 @@ const setupSchema = zod_1.z.object({
 // GET /api/setup-admin -> cek apakah admin sudah ada
 router.get('/', async (_req, res, next) => {
     try {
-        const adminExists = await prisma_1.default.user.findFirst({ where: { role: 'ADMIN' } });
+        const adminExists = await prisma_1.default.user.findFirst({
+            where: { role: 'ADMIN' },
+        });
         return res.json({ setupComplete: !!adminExists });
     }
     catch (err) {
@@ -27,25 +29,43 @@ router.get('/', async (_req, res, next) => {
 // POST /api/setup-admin -> daftarkan admin pertama, lalu auto-login
 router.post('/', async (req, res, next) => {
     try {
-        const adminExists = await prisma_1.default.user.findFirst({ where: { role: 'ADMIN' } });
+        const adminExists = await prisma_1.default.user.findFirst({
+            where: { role: 'ADMIN' },
+        });
         if (adminExists) {
-            return res.status(403).json({ error: 'Admin sudah terdaftar. Setup tidak bisa diulang.' });
+            return res.status(403).json({
+                error: 'Admin sudah terdaftar. Setup tidak bisa diulang.',
+            });
         }
         const { name, email, password } = setupSchema.parse(req.body);
         const hashedPassword = await bcryptjs_1.default.hash(password, 10);
         const user = await prisma_1.default.user.create({
-            data: { name, email: email.toLowerCase(), password: hashedPassword, role: 'ADMIN' },
+            data: {
+                name,
+                email: email.toLowerCase(),
+                password: hashedPassword,
+                role: 'ADMIN',
+            },
         });
-        const token = (0, auth_1.signToken)({ id: user.id, email: user.email, role: user.role });
+        const token = (0, auth_1.signToken)({
+            id: user.id,
+            email: user.email,
+            role: user.role,
+        });
         res.cookie(auth_1.TOKEN_COOKIE, token, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
+            secure: true,
+            sameSite: 'none',
             maxAge: 7 * 24 * 60 * 60 * 1000,
         });
         return res.status(201).json({
             message: 'Admin berhasil dibuat.',
-            user: { id: user.id, name: user.name, email: user.email, role: user.role },
+            user: {
+                id: user.id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+            },
         });
     }
     catch (err) {

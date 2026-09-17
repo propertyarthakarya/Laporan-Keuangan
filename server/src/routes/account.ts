@@ -21,12 +21,6 @@ const accountSchema = z.object({
     .min(1, 'Account name is required')
     .max(100, 'Account name is too long'),
 
-  accountNumber: z
-    .string()
-    .max(100, 'Account number is too long')
-    .optional()
-    .nullable(),
-
   initialBalance: z
     .number()
     .min(0, 'Initial balance cannot be negative'),
@@ -71,7 +65,6 @@ router.get(
         return {
           id: account.id,
           accountName: account.accountName,
-          accountNumber: account.accountNumber,
           initialBalance: Number(account.initialBalance),
           currentBalance,
           isActive: account.isActive,
@@ -105,7 +98,6 @@ router.post(
       const account = await prisma.account.create({
         data: {
           accountName: data.accountName,
-          accountNumber: data.accountNumber || null,
           initialBalance: data.initialBalance,
         },
       });
@@ -150,7 +142,6 @@ router.put(
         where: { id },
         data: {
           accountName: data.accountName,
-          accountNumber: data.accountNumber || null,
           initialBalance: data.initialBalance,
         },
       });

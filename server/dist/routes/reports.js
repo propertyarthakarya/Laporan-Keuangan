@@ -8,11 +8,12 @@ const prisma_1 = __importDefault(require("../lib/prisma"));
 const auth_1 = require("../middleware/auth");
 const router = (0, express_1.Router)();
 router.use(auth_1.requireAuth);
-// GET /api/reports/profit-loss?startDate=&endDate=
+// GET /api/reports/profit-loss?startDate=&endDate=&accountId=
 // Returns the full profit & loss breakdown by category.
+// accountId kosong / tidak dikirim => semua akun (gabungan).
 router.get('/profit-loss', async (req, res, next) => {
     try {
-        const { startDate, endDate } = req.query;
+        const { startDate, endDate, accountId } = req.query;
         const where = {};
         if (startDate || endDate) {
             const dateFilter = {};
@@ -22,10 +23,27 @@ router.get('/profit-loss', async (req, res, next) => {
                 dateFilter.lte = new Date(endDate);
             where.date = dateFilter;
         }
+        if (accountId) {
+            where.accountId = accountId;
+        }
         const transactions = await prisma_1.default.transaction.findMany({
             where,
             include: {
-                category: { select: { id: true, categoryName: true, type: true } },
+                category: {
+                    select: {
+                        id: true,
+                        categoryName: true,
+                        type: true,
+                        parentId: true,
+                        parent: {
+                            select: {
+                                id: true,
+                                categoryName: true,
+                                type: true,
+                            },
+                        },
+                    },
+                },
             },
             orderBy: { date: 'asc' },
         });
@@ -39,7 +57,14 @@ router.get('/profit-loss', async (req, res, next) => {
             const cat = t.category;
             const map = t.transactionType === 'INCOME' ? incomeByCategory : expenseByCategory;
             if (!map[cat.id]) {
-                map[cat.id] = { categoryId: cat.id, categoryName: cat.categoryName, total: 0, count: 0 };
+                map[cat.id] = {
+                    categoryId: cat.id,
+                    categoryName: cat.categoryName,
+                    total: 0,
+                    count: 0,
+                    parentId: cat.parent?.id ?? null,
+                    parentName: cat.parent?.categoryName ?? null,
+                };
             }
             map[cat.id].total += amt;
             map[cat.id].count += 1;
@@ -51,6 +76,7 @@ router.get('/profit-loss', async (req, res, next) => {
         const netProfit = totalIncome - totalExpenses;
         return res.json({
             period: { startDate: startDate || null, endDate: endDate || null },
+            accountId: accountId || null,
             totalIncome,
             totalExpenses,
             netProfit,
