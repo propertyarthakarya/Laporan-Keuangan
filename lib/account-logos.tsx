@@ -13,7 +13,7 @@ import briLogo from '@/app/img/Bank/BRI.png';
 import bniLogo from '@/app/img/Bank/BNI.png';
 import btnLogo from '@/app/img/Bank/BTN.png';
 import cimbLogo from '@/app/img/Bank/CIMB.png';
-import bankPapuaLogo from '@/app/img/Bank/BankPapua.png';
+import bankPapuaLogo from '@/app/img/Bank/Bankpapua.png';
 
 // Mapping nama akun → logo bank asli. Matching pakai "includes" case-insensitive, jadi
 // nama akun seperti "BCA", "Bank BCA", atau "BCA Operasional" tetap kecocok ke logo BCA.
