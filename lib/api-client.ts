@@ -4,6 +4,7 @@ import type {
   TransactionType,
   Category,
   Transaction,
+  Account,
   DashboardSummary,
   ChartDataPoint,
   ProfitLossReport,
@@ -75,6 +76,60 @@ export const apiClient = {
     return res.user;
   },
 
+  // Accounts
+  async getAccounts(): Promise<Account[]> {
+    const res = await request<{ accounts: Account[] }>('/accounts');
+    return res.accounts;
+  },
+
+  async createAccount(data: {
+    accountName: string;
+    initialBalance: number;
+  }): Promise<Account> {
+    const res = await request<{ account: Account }>('/accounts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+
+    return res.account;
+  },
+
+  async updateAccount(
+    id: string,
+    data: {
+      accountName: string;
+      initialBalance: number;
+    },
+  ): Promise<Account> {
+    const res = await request<{ account: Account }>(`/accounts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+
+    return res.account;
+  },
+
+  async updateAccountStatus(
+    id: string,
+    isActive: boolean,
+  ): Promise<Account> {
+    const res = await request<{ account: Account }>(
+      `/accounts/${id}/status`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive }),
+      },
+    );
+
+    return res.account;
+  },
+
+  async deleteAccount(id: string): Promise<void> {
+    await request(`/accounts/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
   // Categories
   async getCategories(): Promise<Category[]> {
     const res = await request<{ categories: Category[] }>('/categories');
@@ -126,56 +181,115 @@ export const apiClient = {
       method: 'DELETE',
     });
   },
-  // Transactions
-  // NOTE: shape response ('transactions'/'transaction') masih asumsi,
-  // perlu dikonfirmasi setelah lihat isi server/src/routes/transactions.ts
-  async getTransactions(filters?: {
-    startDate?: string;
-    endDate?: string;
-    categoryId?: string;
-    transactionType?: TransactionType;
-  }): Promise<Transaction[]> {
-    const params = new URLSearchParams();
-    if (filters?.startDate) params.set('startDate', filters.startDate);
-    if (filters?.endDate) params.set('endDate', filters.endDate);
-    if (filters?.categoryId) params.set('categoryId', filters.categoryId);
-    if (filters?.transactionType) params.set('transactionType', filters.transactionType);
-    const qs = params.toString();
-    const res = await request<{ transactions: Transaction[] }>(`/transactions${qs ? `?${qs}` : ''}`);
-    return res.transactions;
-  },
+async uploadTransactionProof(file: File): Promise<{
+  url: string;
+  publicId: string;
+}> {
+  const formData = new FormData();
+  formData.append('file', file);
 
-  async createTransaction(data: {
-    date: string;
-    categoryId: string;
-    description?: string | null;
-    amount: number;
-    transactionType: TransactionType;
-  }): Promise<Transaction> {
-    const res = await request<{ transaction: Transaction }>('/transactions', {
+  const res = await fetch(`${API_BASE}/upload/transaction-proof`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    let message = 'Gagal mengupload bukti transaksi.';
+
+    try {
+      const body = await res.json();
+
+      if (body?.error) {
+        message = body.error;
+      } else if (body?.message) {
+        message = body.message;
+      }
+    } catch {
+      // Jika response bukan JSON, gunakan pesan default
+    }
+
+    throw new Error(message);
+  }
+
+  const data = await res.json();
+
+  return {
+    url: data.url,
+    publicId: data.publicId,
+  };
+},
+async getTransactions(filters?: {
+  startDate?: string;
+  endDate?: string;
+  categoryId?: string;
+  accountId?: string;
+  transactionType?: TransactionType;
+}): Promise<Transaction[]> {
+  const params = new URLSearchParams();
+  if (filters?.startDate) params.set('startDate', filters.startDate);
+  if (filters?.endDate) params.set('endDate', filters.endDate);
+  if (filters?.categoryId) params.set('categoryId', filters.categoryId);
+  if (filters?.accountId) params.set('accountId', filters.accountId);
+  if (filters?.transactionType) params.set('transactionType', filters.transactionType);
+
+  const qs = params.toString();
+  const res = await request<{ transactions: Transaction[] }>(
+    `/transactions${qs ? `?${qs}` : ''}`,
+  );
+  return res.transactions;
+},
+
+async createTransaction(data: {
+  date: string;
+  categoryId: string;
+  accountId: string;
+  description?: string | null;
+  amount: number;
+  transactionType: TransactionType;
+  uniqueCode?: string | null;
+  attachmentUrl?: string | null;
+}): Promise<Transaction> {
+  const res = await request<{ transaction: Transaction }>(
+    '/transactions',
+    {
       method: 'POST',
       body: JSON.stringify(data),
-    });
-    return res.transaction;
-  },
+    },
+  );
 
-  async updateTransaction(id: string, data: {
+  return res.transaction;
+},
+
+async updateTransaction(
+  id: string,
+  data: {
     date: string;
     categoryId: string;
+    accountId: string;
     description?: string | null;
     amount: number;
     transactionType: TransactionType;
-  }): Promise<Transaction> {
-    const res = await request<{ transaction: Transaction }>(`/transactions/${id}`, {
+    uniqueCode?: string | null;
+    attachmentUrl?: string | null;
+  },
+): Promise<Transaction> {
+  const res = await request<{ transaction: Transaction }>(
+    `/transactions/${id}`,
+    {
       method: 'PUT',
       body: JSON.stringify(data),
-    });
-    return res.transaction;
-  },
+    },
+  );
 
-  async deleteTransaction(id: string): Promise<void> {
-    await request(`/transactions/${id}`, { method: 'DELETE' });
-  },
+  return res.transaction;
+},
+
+async deleteTransaction(id: string): Promise<void> {
+  await request(`/transactions/${id}`, {
+    method: 'DELETE',
+  });
+},
 
   // Dashboard (sudah dikonfirmasi dari dashboard.ts)
   async getDashboardSummary(): Promise<DashboardSummary> {
@@ -188,11 +302,11 @@ export const apiClient = {
   },
 
   // Reports
-  // NOTE: shape response masih asumsi, perlu dikonfirmasi dari reports.ts
-  async getProfitLoss(filters?: { startDate?: string; endDate?: string }): Promise<ProfitLossReport> {
+  async getProfitLoss(filters?: { startDate?: string; endDate?: string; accountId?: string }): Promise<ProfitLossReport> {
     const params = new URLSearchParams();
     if (filters?.startDate) params.set('startDate', filters.startDate);
     if (filters?.endDate) params.set('endDate', filters.endDate);
+    if (filters?.accountId) params.set('accountId', filters.accountId);
     const qs = params.toString();
     return request<ProfitLossReport>(`/reports/profit-loss${qs ? `?${qs}` : ''}`);
   },

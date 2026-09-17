@@ -10,6 +10,16 @@ export interface User {
   transactionCount?: number;
 }
 
+export interface Account {
+  id: string;
+  accountName: string;
+  initialBalance: number;
+  currentBalance: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Category {
   id: string;
   categoryName: string;
@@ -34,10 +44,16 @@ export interface Transaction {
     type: TransactionType;
   } | null;
 };
+  accountId: string;
+  account?: {
+    id: string;
+    accountName: string;
+  } | null;
   description: string | null;
   amount: number;
   transactionType: TransactionType;
   uniqueCode: string | null;
+  attachmentUrl: string | null;
   createdById: string;
   createdBy: {
     id: string;

@@ -404,13 +404,15 @@ export default function UsersPage() {
                     <div
                       className={cn(
                         'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9',
-                        entry.transactionType === 'INCOME' ? 'bg-secondary' : 'bg-foreground/5',
+                        entry.transactionType === 'INCOME'
+                          ? 'bg-emerald-500/10 dark:bg-emerald-400/10'
+                          : 'bg-rose-500/10 dark:bg-rose-400/10',
                       )}
                     >
                       {entry.transactionType === 'INCOME' ? (
-                        <ArrowUpCircle className="h-4 w-4 text-foreground" />
+                        <ArrowUpCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                       ) : (
-                        <ArrowDownCircle className="h-4 w-4 text-muted-foreground" />
+                        <ArrowDownCircle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
@@ -425,8 +427,10 @@ export default function UsersPage() {
                     <div className="flex-shrink-0 text-right">
                       <p
                         className={cn(
-                          'text-sm font-bold',
-                          entry.transactionType === 'INCOME' ? 'text-foreground' : 'text-muted-foreground',
+                          'font-mono text-sm font-bold tabular-nums',
+                          entry.transactionType === 'INCOME'
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-rose-600 dark:text-rose-400',
                         )}
                       >
                         {entry.transactionType === 'INCOME' ? '+' : '-'}

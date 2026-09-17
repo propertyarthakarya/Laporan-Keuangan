@@ -6,11 +6,12 @@ const router = Router();
 
 router.use(requireAuth);
 
-// GET /api/reports/profit-loss?startDate=&endDate=
+// GET /api/reports/profit-loss?startDate=&endDate=&accountId=
 // Returns the full profit & loss breakdown by category.
+// accountId kosong / tidak dikirim => semua akun (gabungan).
 router.get('/profit-loss', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, accountId } = req.query;
 
     const where: Record<string, unknown> = {};
     if (startDate || endDate) {
@@ -18,6 +19,9 @@ router.get('/profit-loss', async (req: AuthenticatedRequest, res: Response, next
       if (startDate) dateFilter.gte = new Date(startDate as string);
       if (endDate) dateFilter.lte = new Date(endDate as string);
       where.date = dateFilter;
+    }
+    if (accountId) {
+      where.accountId = accountId as string;
     }
 
     const transactions = await prisma.transaction.findMany({
@@ -96,6 +100,7 @@ const expenseByCategory: Record<
 
     return res.json({
       period: { startDate: startDate || null, endDate: endDate || null },
+      accountId: accountId || null,
       totalIncome,
       totalExpenses,
       netProfit,

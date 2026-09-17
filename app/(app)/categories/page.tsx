@@ -43,6 +43,7 @@ import {
   Plus,
   Pencil,
   Trash2,
+  Copy,
   Tags,
   CircleArrowUp as ArrowUpCircle,
   CircleArrowDown as ArrowDownCircle,
@@ -297,6 +298,22 @@ export default function CategoriesPage() {
     setDialogOpen(true);
   }
 
+  // Duplikat kategori: buka dialog "tambah baru" (bukan edit) yang sudah
+  // ter-prefill dari kategori yang di-duplikat — tipe & induk (kalau ada)
+  // ikut disalin, nama diberi akhiran " (Salinan)" supaya jelas ini kategori
+  // baru dan tidak bentrok nama dengan yang asli. `editing` sengaja tetap
+  // null supaya submit-nya jadi CREATE, bukan UPDATE — kategori asli tidak
+  // tersentuh sama sekali.
+  function openDuplicate(cat: Category) {
+    setEditing(null);
+    setFormName(`${cat.categoryName} (Salinan)`);
+    setFormType(cat.type);
+    setFormParentId(cat.parentId ?? 'none');
+    setCategoryKind(cat.parentId ? 'sub' : 'main');
+    setFormError('');
+    setDialogOpen(true);
+  }
+
   function handleKindChange(kind: CategoryKind) {
     if (kind === 'sub' && !anyParentAvailable) {
       return;
@@ -427,6 +444,17 @@ export default function CategoriesPage() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
+                      title="Duplikat subkategori"
+                      aria-label={`Duplikat subkategori ${child.categoryName}`}
+                      onClick={() => openDuplicate(child)}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
                       title="Edit subkategori"
                       aria-label={`Edit subkategori ${child.categoryName}`}
                       onClick={() => openEdit(child)}
@@ -532,6 +560,18 @@ export default function CategoriesPage() {
                 onClick={() => openCreate(cat.type, cat.id)}
               >
                 <Plus className="h-3.5 w-3.5" />
+              </Button>
+
+              {/* Duplikat */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                title="Duplikat kategori"
+                aria-label={`Duplikat kategori ${cat.categoryName}`}
+                onClick={() => openDuplicate(cat)}
+              >
+                <Copy className="h-3.5 w-3.5" />
               </Button>
 
               {/* Edit */}

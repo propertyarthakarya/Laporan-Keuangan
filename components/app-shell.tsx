@@ -20,7 +20,20 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { LayoutDashboard, ArrowLeftRight, Tags, ChartBar as FileBarChart, Users, LogOut, Menu, Loader as Loader2, Languages, Sun, Moon } from 'lucide-react';
+import {
+  LayoutDashboard,
+  ArrowLeftRight,
+  Tags,
+  ChartBar as FileBarChart,
+  Users,
+  Wallet,
+  LogOut,
+  Menu,
+  Loader as Loader2,
+  Languages,
+  Sun,
+  Moon,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TranslationKey } from '@/lib/i18n/translations';
 import { useTheme } from 'next-themes';
@@ -39,6 +52,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard, roles: ['ADMIN', 'STAFF', 'MANAGEMENT'] },
   { href: '/transactions', labelKey: 'nav.transactions', icon: ArrowLeftRight, roles: ['ADMIN', 'STAFF'] },
   { href: '/categories', labelKey: 'nav.categories', icon: Tags, roles: ['ADMIN'] },
+  { href: '/accounts', labelKey: 'nav.accounts', icon: Wallet, roles: ['ADMIN'] },
   { href: '/reports', labelKey: 'nav.reports', icon: FileBarChart, roles: ['ADMIN', 'STAFF', 'MANAGEMENT'] },
   { href: '/users', labelKey: 'nav.users', icon: Users, roles: ['ADMIN'] },
 ];

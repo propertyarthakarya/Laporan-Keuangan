@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import type { User, Role, TransactionType, Category, Transaction, DashboardSummary, ChartDataPoint, ProfitLossReport, ActivityLogEntry, LoginActivityEntry } from './types';
+import type { User, Role, TransactionType, Category, Transaction, Account, DashboardSummary, ChartDataPoint, ProfitLossReport, ActivityLogEntry, LoginActivityEntry } from './types';
 import { apiClient } from './api-client';
 
 interface AuthContextValue {
@@ -27,15 +27,54 @@ updateCategory: (
 ) => Promise<Category>;
 deleteCategory: (id: string) => Promise<void>;
 
-  getTransactions: (filters?: { startDate?: string; endDate?: string; categoryId?: string; transactionType?: TransactionType }) => Promise<Transaction[]>;
-  createTransaction: (data: { date: string; categoryId: string; description?: string | null; amount: number; transactionType: TransactionType }) => Promise<Transaction>;
-  updateTransaction: (id: string, data: { date: string; categoryId: string; description?: string | null; amount: number; transactionType: TransactionType }) => Promise<Transaction>;
-  deleteTransaction: (id: string) => Promise<void>;
+  getAccounts: () => Promise<Account[]>;
+  createAccount: (data: {
+    accountName: string;
+    accountNumber?: string | null;
+    initialBalance: number;
+  }) => Promise<Account>;
+  updateAccount: (
+    id: string,
+    data: {
+      accountName: string;
+      accountNumber?: string | null;
+      initialBalance: number;
+    },
+  ) => Promise<Account>;
+  updateAccountStatus: (id: string, isActive: boolean) => Promise<Account>;
+  deleteAccount: (id: string) => Promise<void>;
+
+  getTransactions: (filters?: { startDate?: string; endDate?: string; categoryId?: string; accountId?: string; transactionType?: TransactionType }) => Promise<Transaction[]>;
+ createTransaction: (data: {
+  date: string;
+  categoryId: string;
+  accountId: string;
+  description?: string | null;
+  amount: number;
+  transactionType: TransactionType;
+  uniqueCode?: string | null;
+  attachmentUrl?: string | null;
+}) => Promise<Transaction>;
+updateTransaction: (id: string, data: {
+  date: string;
+  categoryId: string;
+  accountId: string;
+  description?: string | null;
+  amount: number;
+  transactionType: TransactionType;
+  uniqueCode?: string | null;
+  attachmentUrl?: string | null;
+}) => Promise<Transaction>;
+deleteTransaction: (id: string) => Promise<void>;   // ← add this line
+uploadTransactionProof: (file: File) => Promise<{
+  url: string;
+  publicId: string;
+}>;
 
   getDashboardSummary: () => Promise<DashboardSummary>;
   getDashboardCharts: (range: 'daily' | 'weekly' | 'monthly') => Promise<ChartDataPoint[]>;
 
-  getProfitLoss: (filters?: { startDate?: string; endDate?: string }) => Promise<ProfitLossReport>;
+  getProfitLoss: (filters?: { startDate?: string; endDate?: string; accountId?: string }) => Promise<ProfitLossReport>;
 
   getUsers: () => Promise<(User & { transactionCount: number })[]>;
   createUser: (data: { name: string; email: string; password: string; role: Role }) => Promise<User>;
@@ -117,10 +156,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     createCategory: apiClient.createCategory,
     updateCategory: apiClient.updateCategory,
     deleteCategory: apiClient.deleteCategory,
+    getAccounts: apiClient.getAccounts,
+    createAccount: apiClient.createAccount,
+    updateAccount: apiClient.updateAccount,
+    updateAccountStatus: apiClient.updateAccountStatus,
+    deleteAccount: apiClient.deleteAccount,
     getTransactions: apiClient.getTransactions,
     createTransaction: apiClient.createTransaction,
-    updateTransaction: apiClient.updateTransaction,
-    deleteTransaction: apiClient.deleteTransaction,
+  updateTransaction: apiClient.updateTransaction,
+  deleteTransaction: apiClient.deleteTransaction,
+  uploadTransactionProof: apiClient.uploadTransactionProof,
     getDashboardSummary: apiClient.getDashboardSummary,
     getDashboardCharts: apiClient.getDashboardCharts,
     getProfitLoss: apiClient.getProfitLoss,

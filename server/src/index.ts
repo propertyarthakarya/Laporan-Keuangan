@@ -5,10 +5,12 @@ import cors from 'cors';
 import authRoutes from './routes/auth';
 import categoryRoutes from './routes/categories';
 import transactionRoutes from './routes/transactions';
+import accountRoutes from './routes/account';
 import dashboardRoutes from './routes/dashboard';
 import reportRoutes from './routes/reports';
 import userRoutes from './routes/users';
 import setupAdminRoutes from './routes/setup-admin';
+import uploadRoutes from './routes/upload'; 
 import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
@@ -42,10 +44,12 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/accounts', accountRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/setup-admin', setupAdminRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // 404
 app.use((_req, res) => {

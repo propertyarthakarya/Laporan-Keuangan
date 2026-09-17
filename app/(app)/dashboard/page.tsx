@@ -30,8 +30,10 @@ import type {
   DashboardSummary,
   ChartDataPoint,
   ChartCategoryBreakdown,
+  Account,
 } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { AccountAvatar } from '@/lib/account-logos';
 
 type Range = 'daily' | 'weekly' | 'monthly';
 type Accent = 'emerald' | 'rose' | 'indigo' | 'amber';
@@ -90,6 +92,8 @@ const ACCENT_STYLES: Record<
     iconText: 'text-amber-600 dark:text-amber-400',
   },
 };
+
+
 
 // Animasi "ticker": tiap kali nilai berubah (misalnya karena auto-refresh 10 detik),
 // angkanya jalan halus dari nilai lama ke nilai baru, bukan langsung loncat.
@@ -326,14 +330,14 @@ function DashboardBackground() {
 }
 
 export default function DashboardPage() {
-  const { user, getDashboardSummary, getDashboardCharts } = useAuth();
+  const { user, getDashboardSummary, getDashboardCharts, getAccounts } = useAuth();
   const { t } = useLanguage();
   const [range, setRange] = useState<Range>('daily');
 
   // Summary — auto refetch tiap 10 detik, gantiin setInterval manual
   const {
     data: summary,
-    isLoading: loading,
+    isLoading: summaryLoading,
     isFetching: summaryFetching,
     refetch: refetchSummary,
   } = useQuery<DashboardSummary>({
@@ -342,7 +346,23 @@ export default function DashboardPage() {
     refetchInterval: 10000,
   });
 
-  // Charts — key-nya include `range`, jadi otomatis refetch tiap ganti tab daily/weekly/monthly
+  // Akun — sumber saldo per akun (BCA, Mandiri, BRI, Kas, dst) dan dasar hitung Total Saldo.
+  // Auto refetch 10 detik juga, biar selaras sama summary & chart.
+  const {
+    data: accounts = [],
+    isLoading: accountsLoading,
+    isFetching: accountsFetching,
+    refetch: refetchAccounts,
+  } = useQuery<Account[]>({
+    queryKey: ['dashboard-accounts'],
+    queryFn: getAccounts,
+    refetchInterval: 10000,
+  });
+
+  // Charts — key-nya include `range`, jadi otomatis refetch tiap ganti tab daily/weekly/monthly.
+  // Data income/expense di sini datang dari transaksi yang sudah terhubung ke akun (accountId),
+  // jadi tidak perlu diubah di sisi frontend — cukup pastikan backend `getDashboardCharts`
+  // menghitungnya dari transaksi yang punya accountId valid.
   const {
     data: chartData = [],
     isLoading: chartLoading,
@@ -358,10 +378,23 @@ export default function DashboardPage() {
     await Promise.all([
       refetchSummary(),
       refetchCharts(),
+      refetchAccounts(),
     ]);
   }
 
   const profitPositive = (summary?.profitLoss ?? 0) >= 0;
+
+  // Cuma akun aktif yang dihitung ke Total Saldo & ditampilkan di section "Saldo Akun" —
+  // akun yang di-nonaktifkan dianggap sudah "ditutup" dan tidak relevan ke posisi kas saat ini.
+  const activeAccounts = accounts.filter((a) => a.isActive);
+  const totalBalance = activeAccounts.reduce(
+    (sum, a) => sum + a.currentBalance,
+    0,
+  );
+
+  // Loading gabungan: kartu ringkasan butuh summary DAN accounts (karena kartu Total Saldo
+  // sekarang dihitung dari accounts, bukan lagi dari summary.cashBalance).
+  const loading = summaryLoading || accountsLoading;
 
   const cards: {
     label: string;
@@ -385,8 +418,10 @@ export default function DashboardPage() {
       accent: 'rose',
     },
     {
-      label: t('dashboard.cashBalance'),
-      value: summary?.cashBalance ?? 0,
+      // Dulu: saldo kas tunggal (summary.cashBalance). Sekarang: total saldo SEMUA akun aktif
+      // (BCA + Mandiri + BRI + Kas + ...), dihitung dari data /accounts.
+      label: t('dashboard.totalBalance'),
+      value: totalBalance,
       icon: Wallet,
       trend: null,
       accent: 'indigo',
@@ -400,7 +435,8 @@ export default function DashboardPage() {
     },
   ];
 
-  // Chart config — warna biru senada, income lebih pekat
+  // Chart config — income biru, expense merah, biar langsung kebaca positif/negatif
+  // tanpa harus liat legend dulu.
   const chartConfig = {
     income: {
       label: t('dashboard.income'),
@@ -408,7 +444,7 @@ export default function DashboardPage() {
     },
     expense: {
       label: t('dashboard.expenses'),
-      color: '#60a5fa',
+      color: '#ef4444',
     },
   } satisfies ChartConfig;
 
@@ -421,7 +457,7 @@ export default function DashboardPage() {
   const activeRangeIndex = ranges.indexOf(range);
 
   const refreshing =
-    summaryFetching || chartFetching;
+    summaryFetching || chartFetching || accountsFetching;
 
   return (
     <div className="relative isolate p-4 sm:p-6 lg:p-8 animate-fade-in">
@@ -511,6 +547,73 @@ export default function DashboardPage() {
               );
             })}
       </div>
+
+      {/* Saldo Akun — breakdown saldo tiap akun (BCA, Mandiri, BRI, Kas, dst). Desain kartu
+          kaca yang sama, cuma ukurannya lebih kecil karena jumlah akun bisa banyak. */}
+      <Card className="relative mt-4 overflow-hidden border-white/60 bg-white/60 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] [backdrop-filter:blur(20px)_saturate(150%)] sm:mt-8 dark:border-white/10 dark:bg-white/[0.05] dark:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.4)]">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-black/10 to-transparent dark:via-white/25" />
+        <CardHeader className="p-4 sm:p-6">
+          <CardTitle>{t('dashboard.accountBalances')}</CardTitle>
+          <CardDescription>{t('dashboard.accountBalancesSubtitle')}</CardDescription>
+        </CardHeader>
+        <CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+          {accountsLoading ? (
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="h-[86px] w-full rounded-xl sm:h-[94px]" />
+              ))}
+            </div>
+          ) : activeAccounts.length === 0 ? (
+            <div className="flex h-20 items-center justify-center text-center text-sm text-muted-foreground">
+              {t('dashboard.noAccounts')}
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+              {activeAccounts.map((account, i) => {
+                const accentOrder: Accent[] = ['indigo', 'emerald', 'amber', 'rose'];
+                const accent = accentOrder[i % accentOrder.length];
+                const style = ACCENT_STYLES[accent];
+                return (
+                  <div
+                    key={account.id}
+                    className={cn(
+                      'group relative overflow-hidden rounded-xl border p-3.5 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md sm:p-4',
+                      'border-white/60 bg-white/50 dark:border-white/10 dark:bg-white/[0.04]',
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="transition-transform duration-300 group-hover:scale-110">
+                        <AccountAvatar
+                          accountName={account.accountName}
+                          boxClassName="h-10 w-10 sm:h-11 sm:w-11"
+                          iconClassName="h-5 w-5"
+                          iconBg={style.iconBg}
+                          iconText={style.iconText}
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-medium text-muted-foreground sm:text-sm">
+                          {account.accountName}
+                        </p> 
+                      </div>
+                    </div>
+                    <p
+  className={cn(
+    'mt-3 truncate font-mono text-sm font-bold tabular-nums tracking-tight sm:text-base',
+    account.currentBalance < 0
+      ? 'text-rose-600 dark:text-rose-400'
+      : 'text-emerald-600 dark:text-emerald-400',
+  )}
+>
+  <AnimatedCurrency value={account.currentBalance} />
+</p>
+                </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Chart */}
       <Card className="relative mt-4 overflow-hidden border-white/60 bg-white/60 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] [backdrop-filter:blur(20px)_saturate(150%)] sm:mt-8 dark:border-white/10 dark:bg-white/[0.05] dark:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.4)]">

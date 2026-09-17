@@ -18,12 +18,26 @@ model User {
   transactions    Transaction[]   @relation("UserTransactions")
 }
 
+model Account {
+  id             String        @id @default(uuid())
+  accountName    String
+  initialBalance Decimal       @default(0) @db.Decimal(14, 2)
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  transactions   Transaction[]
+
+  @@index([isActive])
+}
+
 model Category {
   id           String          @id @default(uuid())
   categoryName String
   type         TransactionType
   parentId     String?
   createdAt    DateTime        @default(now())
+
   parent       Category?       @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
   children     Category[]      @relation("CategoryHierarchy")
   transactions Transaction[]
@@ -36,17 +50,22 @@ model Transaction {
   id              String          @id @default(uuid())
   date            DateTime
   categoryId      String
+  accountId       String
   description     String?
   amount          Decimal         @db.Decimal(14, 2)
   transactionType TransactionType
   uniqueCode      String?
+  attachmentUrl   String?         
   createdById     String
   createdAt       DateTime        @default(now())
+
   category        Category        @relation(fields: [categoryId], references: [id])
+  account         Account         @relation(fields: [accountId], references: [id])
   createdBy       User            @relation("UserTransactions", fields: [createdById], references: [id])
 
   @@index([date])
   @@index([categoryId])
+  @@index([accountId])
   @@index([createdById])
   @@index([transactionType])
 }
@@ -66,6 +85,7 @@ model LoginActivity {
   isNewLocation               Boolean     @default(false)
   failedAttemptsBeforeSuccess Int         @default(0)
   createdAt                   DateTime    @default(now())
+
   user                        User?       @relation(fields: [userId], references: [id])
 
   @@index([userId])

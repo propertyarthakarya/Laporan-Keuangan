@@ -10,7 +10,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -28,11 +27,18 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { formatCurrency, formatDate, formatTime, toInputDate } from '@/lib/format';
-import type { Transaction, Category, TransactionType } from '@/lib/types';
+import type {
+  Transaction,
+  Category,
+  TransactionType,
+  Account,
+} from '@/lib/types';
+
 import {
   Plus,
   Pencil,
   Trash2,
+  Copy,
   CircleArrowUp as ArrowUpCircle,
   CircleArrowDown as ArrowDownCircle,
   Filter,
@@ -45,6 +51,7 @@ import {
   Hash,
   Calendar as CalendarIcon,
   Wallet,
+  Paperclip,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -55,14 +62,17 @@ import { cn } from '@/lib/utils';
 type TransactionFormData = {
   date: string;
   categoryId: string;
+  accountId: string;
   description: string;
   amount: string;
   transactionType: TransactionType;
   uniqueCode: string;
 };
 
+
 type TransactionFilters = {
   categoryId?: string;
+  accountId?: string;
   transactionType?: TransactionType;
   startDate?: string;
   endDate?: string;
@@ -71,6 +81,7 @@ type TransactionFilters = {
 const EMPTY_FORM: TransactionFormData = {
   date: toInputDate(new Date()),
   categoryId: '',
+  accountId: '',
   description: '',
   amount: '',
   transactionType: 'INCOME',
@@ -85,10 +96,6 @@ type TFunction = ReturnType<typeof useLanguage>['t'];
 
 // ============================================================================
 // Background — Glassmorphism + Noise Texture
-// ----------------------------------------------------------------------------
-// Komponen yang sama persis dengan yang dipakai di halaman Dashboard, supaya
-// nuansa visualnya konsisten di seluruh aplikasi. Cuma dekorasi di belakang
-// layar — tidak menyentuh state, query, atau fitur apa pun di halaman ini.
 // ============================================================================
 
 const NOISE_BG =
@@ -97,19 +104,10 @@ const NOISE_BG =
 function PageBackground() {
   return (
     <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-      {/* 1. Dasar solid — abu sangat muda di light mode, nyaris hitam di dark mode */}
       <div className="absolute inset-0 bg-[#f4f4f6] dark:bg-[#0a0a0c]" />
-
-      {/* 2a. Glow diagonal kiri-atas */}
       <div className="absolute -top-24 -left-24 h-[420px] w-[420px] rotate-[-20deg] bg-blue-200/25 blur-[110px] dark:bg-white/[0.10]" />
-
-      {/* 2b. Glow lembut menyebar di kanan-tengah */}
       <div className="absolute top-1/3 right-[-10%] h-[520px] w-[620px] -translate-y-1/2 rounded-full bg-indigo-200/20 blur-[130px] dark:bg-white/[0.07]" />
-
-      {/* 2c. Glow tengah */}
       <div className="absolute -top-32 left-1/2 h-[500px] w-[700px] -translate-x-1/2 rounded-full bg-black/[0.04] blur-[120px] dark:bg-white/[0.1]" />
-
-      {/* 3. Noise / grain halus — dipakai di kedua mode, opacity beda jauh */}
       <div
         className="absolute inset-0 opacity-[0.015] mix-blend-multiply dark:opacity-[0.05] dark:mix-blend-overlay"
         style={{ backgroundImage: NOISE_BG, backgroundRepeat: 'repeat' }}
@@ -118,8 +116,6 @@ function PageBackground() {
   );
 }
 
-// Class glass yang dipakai berulang di kartu-kartu halaman ini — biar konsisten
-// & gampang diubah dari satu tempat kalau nanti mau di-tweak.
 const GLASS_CARD =
   'border-white/60 bg-white/60 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.08)] [backdrop-filter:blur(20px)_saturate(150%)] dark:border-white/10 dark:bg-white/[0.05] dark:shadow-[0_4px_24px_-8px_rgba(0,0,0,0.4)]';
 
@@ -298,8 +294,7 @@ function CategoryPicker({
 }
 
 // ============================================================================
-// Sub-komponen: Category picker untuk FILTER (drill-down, ikut mengikuti Jenis
-// yang aktif, dengan opsi "Semua Kategori")
+// Sub-komponen: Category picker untuk FILTER
 // ============================================================================
 
 function CategoryFilterPicker({
@@ -318,7 +313,6 @@ function CategoryFilterPicker({
   const [open, setOpen] = useState(false);
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
 
-  // Kategori yang relevan dengan Jenis yang aktif (atau semua kalau type === 'all')
   const categoriesForType =
     type === 'all'
       ? categories
@@ -497,8 +491,234 @@ function CategoryFilterPicker({
   );
 }
 
-// Warna income/expense disamain dengan palet dashboard (emerald/rose), bukan
-// green-600/red-600 generik, biar identitas visual satu aplikasi konsisten.
+// ============================================================================
+// Sub-komponen: Type picker untuk FILTER
+// ============================================================================
+
+function TypeFilterPicker({
+  value,
+  onChange,
+  t,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  t: TFunction;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const options: { value: string; label: string }[] = [
+    { value: 'all', label: t('transactions.allTypes') || 'Semua Jenis' },
+    { value: 'INCOME', label: t('transactions.income') },
+    { value: 'EXPENSE', label: t('transactions.expense') },
+  ];
+
+  const selected = options.find((option) => option.value === value);
+
+  function handleSelect(optionValue: string) {
+    onChange(optionValue);
+    setOpen(false);
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(
+            'w-full justify-between font-normal transition-colors',
+            value === 'all' && 'text-muted-foreground',
+          )}
+        >
+          <span className="truncate">{selected?.label}</span>
+          <ChevronRight className="ml-2 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-1" align="start">
+        <div className="space-y-1">
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => handleSelect(option.value)}
+              className={cn(
+                'flex w-full items-center rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-secondary',
+                value === option.value && 'bg-secondary font-medium',
+              )}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ============================================================================
+// Sub-komponen: Account picker untuk FILTER
+// ============================================================================
+
+function AccountFilterPicker({
+  accounts,
+  value,
+  onChange,
+  t,
+}: {
+  accounts: Account[];
+  value: string;
+  onChange: (value: string) => void;
+  t: TFunction;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const selectedAccount = accounts.find((account) => account.id === value);
+  const displayLabel =
+    value === 'all' || !value
+      ? t('transactions.allAccounts') || 'Semua Akun'
+      : selectedAccount?.accountName ?? (t('transactions.allAccounts') || 'Semua Akun');
+
+  function handleSelect(nextValue: string) {
+    onChange(nextValue);
+    setOpen(false);
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className={cn(
+            'w-full justify-between font-normal transition-colors',
+            (value === 'all' || !value) && 'text-muted-foreground',
+          )}
+        >
+          <span className="truncate">{displayLabel}</span>
+          <ChevronRight className="ml-2 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-1" align="start">
+        <div className="space-y-1">
+          <button
+            type="button"
+            onClick={() => handleSelect('all')}
+            className={cn(
+              'flex w-full items-center rounded-md px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-secondary',
+              (value === 'all' || !value) && 'bg-secondary',
+            )}
+          >
+            {t('transactions.allAccounts') || 'Semua Akun'}
+          </button>
+
+          <div className="border-t pt-1">
+            {accounts.map((account) => (
+              <button
+                key={account.id}
+                type="button"
+                onClick={() => handleSelect(account.id)}
+                className={cn(
+                  'flex w-full items-center rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-secondary',
+                  value === account.id && 'bg-secondary',
+                )}
+              >
+                {account.accountName}
+              </button>
+            ))}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ============================================================================
+// Sub-komponen: Account picker untuk FORM tambah/edit
+// ============================================================================
+
+function AccountPicker({
+  accounts,
+  transactionType,
+  value,
+  onChange,
+  t,
+}: {
+  accounts: Account[];
+  transactionType: TransactionType;
+  value: string;
+  onChange: (value: string) => void;
+  t: TFunction;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const label =
+    transactionType === 'INCOME'
+      ? t('transactions.accountIncome')
+      : t('transactions.accountExpense');
+
+  const selectedAccount = accounts.find((account) => account.id === value);
+
+  function handleSelect(account: Account) {
+    if (!account.isActive) return;
+    onChange(account.id);
+    setOpen(false);
+  }
+
+  return (
+    <div>
+      <Label htmlFor="tx-account">{label}</Label>
+
+      <div className="mt-1.5">
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              id="tx-account"
+              type="button"
+              variant="outline"
+              className={cn(
+                'w-full justify-between font-normal transition-colors',
+                !selectedAccount && 'text-muted-foreground',
+              )}
+            >
+              <span className="truncate">
+                {selectedAccount?.accountName || t('transactions.selectAccount')}
+              </span>
+              <ChevronRight className="ml-2 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+            </Button>
+          </PopoverTrigger>
+
+          <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-1" align="start">
+            <div className="space-y-1">
+              {accounts.map((account) => (
+                <button
+                  key={account.id}
+                  type="button"
+                  disabled={!account.isActive}
+                  onClick={() => handleSelect(account)}
+                  className={cn(
+                    'flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-secondary',
+                    value === account.id && 'bg-secondary font-medium',
+                    !account.isActive && 'cursor-not-allowed opacity-50 hover:bg-transparent',
+                  )}
+                >
+                  <span className="truncate">{account.accountName}</span>
+                  {!account.isActive && (
+                    <span className="ml-2 flex-shrink-0 text-xs text-muted-foreground">
+                      ({t('accounts.inactive')})
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+    </div>
+  );
+}
+
 const TYPE_STYLES = {
   income: {
     iconBg: 'bg-emerald-500/10 dark:bg-emerald-400/10',
@@ -512,9 +732,6 @@ const TYPE_STYLES = {
   },
 } as const;
 
-// Header grup tanggal pakai tint biru lembut & transparan, senada dengan kartu
-// "Total Pemasukan" (bg-emerald-500/5 + border tipis) — cukup buat pergantian
-// hari kelihatan jelas, tanpa kesan mengkilap/berlebihan.
 const DATE_GROUP_THEME = {
   bg: 'bg-blue-500/5 dark:bg-blue-400/5',
   text: 'text-blue-700 dark:text-blue-400 font-semibold',
@@ -522,86 +739,7 @@ const DATE_GROUP_THEME = {
 } as const;
 
 // ============================================================================
-// Sub-komponen: Kartu ringkasan (Total Pemasukan / Pengeluaran / Selisih)
-// Dihitung dari seluruh hasil yang sudah difilter & dicari, bukan cuma
-// halaman yang sedang tampil, biar mewakili keseluruhan data terpilih.
-// ============================================================================
-
-function TransactionSummary({
-  transactions,
-  t,
-}: {
-  transactions: Transaction[];
-  t: TFunction;
-}) {
-  const totalIncome = transactions
-    .filter((tx) => tx.transactionType === 'INCOME')
-    .reduce((sum, tx) => sum + tx.amount, 0);
-
-  const totalExpense = transactions
-    .filter((tx) => tx.transactionType === 'EXPENSE')
-    .reduce((sum, tx) => sum + tx.amount, 0);
-
-  const balance = totalIncome - totalExpense;
-  const isPositive = balance >= 0;
-
-  return (
-    <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-      <Card className={cn(GLASS_CARD, 'border-emerald-600/20 bg-emerald-500/5 dark:border-emerald-400/20 dark:bg-emerald-400/5')}>
-        <CardContent className="flex items-center gap-3 p-4">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 dark:bg-emerald-400/10">
-            <ArrowUpCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">{t('transactions.totalIncome')}</p>
-            <p className="truncate font-mono text-base font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
-              {formatCurrency(totalIncome)}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className={cn(GLASS_CARD, 'border-rose-600/20 bg-rose-500/5 dark:border-rose-400/20 dark:bg-rose-400/5')}>
-        <CardContent className="flex items-center gap-3 p-4">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-rose-500/10 dark:bg-rose-400/10">
-            <ArrowDownCircle className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">{t('transactions.totalExpense')}</p>
-            <p className="truncate font-mono text-base font-bold tabular-nums text-rose-600 dark:text-rose-400">
-              {formatCurrency(totalExpense)}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className={GLASS_CARD}>
-        <CardContent className="flex items-center gap-3 p-4">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-secondary">
-            <Wallet className="h-4 w-4 text-foreground" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">{t('transactions.netBalance')}</p>
-            <p
-              className={cn(
-                'truncate font-mono text-base font-bold tabular-nums',
-                isPositive
-                  ? 'text-emerald-600 dark:text-emerald-400'
-                  : 'text-rose-600 dark:text-rose-400',
-              )}
-            >
-              {isPositive ? '+' : '-'}
-              {formatCurrency(Math.abs(balance))}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-// ============================================================================
-// Sub-komponen: Filter tanggal (satu kalender range, ganti dua input from/to)
+// Sub-komponen: Filter tanggal
 // ============================================================================
 
 function DateRangeFilter({
@@ -687,12 +825,15 @@ function DateRangeFilter({
 
 function TransactionFilterBar({
   categories,
+  accounts,
   searchQuery,
   onSearchChange,
   filterCategory,
   onFilterCategoryChange,
   filterType,
   onFilterTypeChange,
+  filterAccount,
+  onFilterAccountChange,
   filterStartDate,
   onFilterStartDateChange,
   filterEndDate,
@@ -702,12 +843,15 @@ function TransactionFilterBar({
   t,
 }: {
   categories: Category[];
+  accounts: Account[];
   searchQuery: string;
   onSearchChange: (v: string) => void;
   filterCategory: string;
   onFilterCategoryChange: (v: string) => void;
   filterType: string;
   onFilterTypeChange: (v: string) => void;
+  filterAccount: string;
+  onFilterAccountChange: (v: string) => void;
   filterStartDate: string;
   onFilterStartDateChange: (v: string) => void;
   filterEndDate: string;
@@ -747,22 +891,24 @@ function TransactionFilterBar({
 
             <div className="w-full sm:w-36">
               <Label className="mb-1.5 block text-xs">{t('transactions.type')}</Label>
-              <Select
+              <TypeFilterPicker
                 value={filterType}
-                onValueChange={(v) => {
+                onChange={(v) => {
                   onFilterTypeChange(v);
                   onFilterCategoryChange('all');
                 }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t('transactions.allTypes')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t('transactions.allTypes')}</SelectItem>
-                  <SelectItem value="INCOME">{t('transactions.income')}</SelectItem>
-                  <SelectItem value="EXPENSE">{t('transactions.expense')}</SelectItem>
-                </SelectContent>
-              </Select>
+                t={t}
+              />
+            </div>
+
+            <div className="w-full sm:w-48">
+              <Label className="mb-1.5 block text-xs">{t('transactions.account')}</Label>
+              <AccountFilterPicker
+                accounts={accounts}
+                value={filterAccount}
+                onChange={onFilterAccountChange}
+                t={t}
+              />
             </div>
 
             <DateRangeFilter
@@ -793,13 +939,11 @@ function TransactionFilterBar({
 
 // ============================================================================
 // Sub-komponen: Header kolom tabel (desktop saja)
-// Tanggal tidak lagi jadi kolom sendiri karena sudah diwakili header grup
-// tanggal di atas tiap kelompok transaksi (lihat groupByDate di bawah).
 // ============================================================================
 
 function TransactionTableHeader({ t }: { t: TFunction }) {
   return (
-    <div className="hidden grid-cols-[64px_180px_1fr_110px_130px_84px] gap-4 border-b border-border bg-muted/20 px-4 py-2.5 text-xs font-medium text-muted-foreground lg:grid">
+    <div className="hidden grid-cols-[64px_180px_1fr_110px_130px_108px] gap-4 border-b border-border bg-muted/20 px-4 py-2.5 text-xs font-medium text-muted-foreground lg:grid">
       <span />
       <span className="truncate overflow-hidden whitespace-nowrap">{t('transactions.category')}</span>
       <span className="truncate overflow-hidden whitespace-nowrap">{t('transactions.description')}</span>
@@ -812,6 +956,10 @@ function TransactionTableHeader({ t }: { t: TFunction }) {
 
 // ============================================================================
 // Sub-komponen: Satu baris transaksi (tabel di desktop, kartu ringkas di mobile)
+// ----------------------------------------------------------------------------
+// PATCH: menambahkan link "Lihat Bukti" (tx.attachmentUrl) di baris desktop
+// dan kartu mobile — sebelumnya field ini tidak ditampilkan sama sekali di
+// sini, walau datanya sudah tersimpan & dikembalikan oleh API.
 // ============================================================================
 
 function TransactionRow({
@@ -819,6 +967,7 @@ function TransactionRow({
   index,
   canEdit,
   onEdit,
+  onDuplicate,
   onDeleteRequest,
   t,
 }: {
@@ -826,16 +975,17 @@ function TransactionRow({
   index: number;
   canEdit: boolean;
   onEdit: (tx: Transaction) => void;
+  onDuplicate: (tx: Transaction) => void;
   onDeleteRequest: (tx: Transaction) => void;
   t: TFunction;
 }) {
   const isIncome = tx.transactionType === 'INCOME';
   const style = isIncome ? TYPE_STYLES.income : TYPE_STYLES.expense;
 
-  // Nama kategori induk selalu jadi judul utama; nama sub-kategori (kalau ada)
-  // ditampilkan terpisah di bawahnya, bukan digabung jadi "Induk / Sub" satu baris.
   const parentName = tx.category.parent?.categoryName ?? tx.category.categoryName;
   const subName = tx.category.parent ? tx.category.categoryName : null;
+
+  const accountName = tx.account?.accountName;
 
   return (
     <div
@@ -843,7 +993,7 @@ function TransactionRow({
       style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
     >
       {/* Desktop: baris tabel */}
-      <div className="hidden grid-cols-[64px_180px_1fr_110px_130px_84px] items-center gap-4 px-4 py-3 lg:grid">
+      <div className="hidden grid-cols-[64px_180px_1fr_110px_130px_108px] items-center gap-4 px-4 py-3 lg:grid">
         <div className="truncate overflow-hidden whitespace-nowrap text-xs text-muted-foreground">{formatTime(tx.createdAt)}</div>
 
         <div className="flex min-w-0 items-center gap-3">
@@ -889,7 +1039,24 @@ function TransactionRow({
             {isIncome ? '+' : '-'}
             {formatCurrency(tx.amount)}
           </p>
-          <p className="truncate text-[11px] text-muted-foreground">{tx.createdBy.name}</p>
+          <p className="truncate text-[11px] text-muted-foreground">
+            {tx.createdBy.name}
+            {accountName ? ` \u00b7 ${accountName}` : ''}
+          </p>
+
+          {/* PATCH: link bukti transaksi (desktop) */}
+          {tx.attachmentUrl && (
+            <a
+              href={tx.attachmentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-blue-600 underline transition-colors hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <Paperclip className="h-2.5 w-2.5" />
+              Lihat Bukti
+            </a>
+          )}
         </div>
 
         <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -897,6 +1064,15 @@ function TransactionRow({
             <>
               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(tx)}>
                 <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => onDuplicate(tx)}
+                title={t('transactions.duplicate')}
+              >
+                <Copy className="h-3.5 w-3.5" />
               </Button>
               <Button
                 variant="ghost"
@@ -960,6 +1136,29 @@ function TransactionRow({
               </Badge>
             )}
 
+            {accountName && (
+              <Badge
+                variant="outline"
+                className="gap-1 border-border text-[10px] font-medium text-muted-foreground"
+              >
+                <Wallet className="h-2.5 w-2.5" />
+                {accountName}
+              </Badge>
+            )}
+
+            {/* PATCH: link bukti transaksi (mobile) */}
+            {tx.attachmentUrl && (
+              <a
+                href={tx.attachmentUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[10px] text-blue-600 underline dark:text-blue-400"
+              >
+                <Paperclip className="h-2.5 w-2.5" />
+                Lihat Bukti
+              </a>
+            )}
+
             <span className="text-[11px] text-muted-foreground">
               {t('transactions.by')} {tx.createdBy.name}
             </span>
@@ -968,6 +1167,15 @@ function TransactionRow({
               <div className="ml-auto flex gap-1">
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(tx)}>
                   <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => onDuplicate(tx)}
+                  title={t('transactions.duplicate')}
+                >
+                  <Copy className="h-3.5 w-3.5" />
                 </Button>
                 <Button
                   variant="ghost"
@@ -987,8 +1195,7 @@ function TransactionRow({
 }
 
 // ============================================================================
-// Helper: kelompokkan transaksi per tanggal (menjaga urutan asal), lalu kasih
-// label yang manusiawi ("Hari ini" / "Kemarin" / tanggal lengkap)
+// Helper: kelompokkan transaksi per tanggal
 // ============================================================================
 
 type TransactionDateGroup = {
@@ -1036,9 +1243,16 @@ function TransactionFormDialog({
   form,
   onFormChange,
   categories,
+  accounts,
   formError,
   saving,
   onSave,
+  proofFile,
+  proofPreview,
+  attachmentUrl,
+  uploadingProof,
+  onProofChange,
+  onRemoveProof,
   t,
 }: {
   open: boolean;
@@ -1047,11 +1261,19 @@ function TransactionFormDialog({
   form: TransactionFormData;
   onFormChange: (patch: Partial<TransactionFormData>) => void;
   categories: Category[];
+  accounts: Account[];
   formError: string;
   saving: boolean;
   onSave: () => void;
+  proofFile: File | null;
+  proofPreview: string | null;
+  attachmentUrl: string | null;
+  uploadingProof: boolean;
+  onProofChange: (file: File | null) => void;
+  onRemoveProof: () => void;
   t: TFunction;
 }) {
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -1162,6 +1384,19 @@ function TransactionFormDialog({
             </div>
           </div>
 
+          {/* Account */}
+          <AccountPicker
+            accounts={accounts}
+            transactionType={form.transactionType}
+            value={form.accountId}
+            onChange={(value) =>
+              onFormChange({
+                accountId: value,
+              })
+            }
+            t={t}
+          />
+
           {/* Amount */}
           <div>
             <Label htmlFor="tx-amount">
@@ -1225,6 +1460,90 @@ function TransactionFormDialog({
               }
               rows={2}
             />
+          </div>
+
+          {/* Bukti Transaksi — dipindah ke dalam space-y-4 supaya spacing
+              antar-field konsisten dengan field lain di atasnya */}
+          <div>
+            <Label>{t('transactions.proof') || 'Bukti Transaksi (Opsional)'}</Label>
+
+            <div className="mt-1.5 space-y-2">
+              {!proofFile && !attachmentUrl ? (
+                <label
+                  htmlFor="tx-proof"
+                  className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-border px-4 py-4 text-sm text-muted-foreground transition-colors hover:bg-secondary"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t('transactions.uploadProof') || 'Upload Bukti'}
+                  <input
+                    id="tx-proof"
+                    type="file"
+                    accept="image/jpeg,image/png,image/jpg"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] ?? null;
+                      onProofChange(file);
+                      e.currentTarget.value = '';
+                    }}
+                  />
+                </label>
+              ) : (
+                <div className="rounded-lg border border-border bg-secondary/30 p-3">
+                  <div className="flex items-center gap-3">
+                    {proofPreview || attachmentUrl ? (
+                      <img
+                        src={proofPreview || attachmentUrl || ''}
+                        alt="Preview bukti transaksi"
+                        className="h-16 w-16 rounded-md border object-cover"
+                      />
+                    ) : null}
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">
+                        {proofFile?.name || 'Bukti transaksi'}
+                      </p>
+
+                      <p className="text-xs text-muted-foreground">
+                        {proofFile
+                          ? `${(proofFile.size / 1024 / 1024).toFixed(2)} MB`
+                          : 'Bukti tersimpan'}
+                      </p>
+                    </div>
+
+                    {(proofPreview || attachmentUrl) && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          window.open(
+                            proofPreview || attachmentUrl || '',
+                            '_blank',
+                            'noopener,noreferrer',
+                          )
+                        }
+                      >
+                        Lihat
+                      </Button>
+                    )}
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={onRemoveProof}
+                      disabled={uploadingProof}
+                    >
+                      Hapus
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[11px] text-muted-foreground">
+                JPG atau PNG, maksimal 5 MB.
+              </p>
+            </div>
           </div>
         </div>
 
@@ -1296,11 +1615,10 @@ function DeleteTransactionDialog({
 }
 
 // ============================================================================
-// Sub-komponen: Kontrol pagination (dengan nomor halaman)
+// Sub-komponen: Kontrol pagination
 // ============================================================================
 
 function getPageNumbers(current: number, total: number): (number | 'ellipsis')[] {
-  // Selalu tampilkan: halaman pertama, halaman terakhir, halaman aktif, dan tetangga kiri-kanannya
   const pages = new Set<number>([1, total, current, current - 1, current + 1]);
   const sorted = Array.from(pages)
     .filter((p) => p >= 1 && p <= total)
@@ -1403,8 +1721,17 @@ function PaginationControls({
 // ============================================================================
 
 export default function TransactionsPage() {
-  const { user, getTransactions, createTransaction, updateTransaction, deleteTransaction, getCategories } =
-    useAuth();
+  const {
+    user,
+    getTransactions,
+    createTransaction,
+    updateTransaction,
+    deleteTransaction,
+    getCategories,
+    getAccounts,
+    uploadTransactionProof,
+  } = useAuth();
+
   const { t } = useLanguage();
   const queryClient = useQueryClient();
   const canEdit = user?.role === 'ADMIN' || user?.role === 'STAFF';
@@ -1412,6 +1739,7 @@ export default function TransactionsPage() {
   // --- State: filter & search ---
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterType, setFilterType] = useState('all');
+  const [filterAccount, setFilterAccount] = useState('all');
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -1421,6 +1749,38 @@ export default function TransactionsPage() {
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [form, setForm] = useState<TransactionFormData>(EMPTY_FORM);
   const [formError, setFormError] = useState('');
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
+  const [uploadingProof, setUploadingProof] = useState(false);
+
+  function handleProofChange(file: File | null) {
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+
+    if (!allowedTypes.includes(file.type)) {
+      setFormError('Bukti transaksi harus berupa JPG atau PNG.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setFormError('Ukuran bukti transaksi maksimal 5 MB.');
+      return;
+    }
+
+    setFormError('');
+    setProofFile(file);
+
+    const previewUrl = URL.createObjectURL(file);
+    setProofPreview(previewUrl);
+  }
+
+  function handleRemoveProof() {
+    setProofFile(null);
+    setProofPreview(null);
+    setAttachmentUrl(null);
+  }
 
   // --- State: dialog konfirmasi hapus ---
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null);
@@ -1435,12 +1795,12 @@ export default function TransactionsPage() {
   // --- Data fetching ---
   const filters: TransactionFilters = {
     categoryId: filterCategory !== 'all' ? filterCategory : undefined,
+    accountId: filterAccount !== 'all' ? filterAccount : undefined,
     transactionType: filterType !== 'all' ? (filterType as TransactionType) : undefined,
     startDate: filterStartDate || undefined,
     endDate: filterEndDate || undefined,
   };
 
-  // Transaksi — queryKey include filter, jadi tiap kombinasi filter punya cache sendiri
   const {
     data: transactions = [],
     isLoading: loading,
@@ -1450,10 +1810,14 @@ export default function TransactionsPage() {
     queryFn: () => getTransactions(filters),
   });
 
-  // Categories — independen dari filter, dipakai buat dropdown filter & form
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ['categories'],
     queryFn: getCategories,
+  });
+
+  const { data: accounts = [] } = useQuery<Account[]>({
+    queryKey: ['accounts'],
+    queryFn: getAccounts,
   });
 
   const error = queryError instanceof Error ? queryError.message : '';
@@ -1482,6 +1846,9 @@ export default function TransactionsPage() {
     setEditingTx(null);
     setForm(EMPTY_FORM);
     setFormError('');
+    setProofFile(null);
+    setProofPreview(null);
+    setAttachmentUrl(null);
     setDialogOpen(true);
   }
 
@@ -1490,12 +1857,38 @@ export default function TransactionsPage() {
     setForm({
       date: toInputDate(tx.date),
       categoryId: tx.categoryId,
+      accountId: tx.accountId || '',
       description: tx.description || '',
       amount: String(tx.amount),
       transactionType: tx.transactionType,
       uniqueCode: tx.uniqueCode || '',
     });
     setFormError('');
+    setProofFile(null);
+    setProofPreview(null);
+    setAttachmentUrl(tx.attachmentUrl ?? null);
+    setDialogOpen(true);
+  }
+
+  function openDuplicateDialog(tx: Transaction) {
+    setEditingTx(null);
+
+    setForm({
+      date: toInputDate(new Date()),
+      categoryId: tx.categoryId,
+      accountId: tx.accountId || '',
+      description: tx.description || '',
+      amount: String(tx.amount),
+      transactionType: tx.transactionType,
+      uniqueCode: '',
+    });
+
+    setFormError('');
+
+    setProofFile(null);
+    setProofPreview(null);
+    setAttachmentUrl(null);
+
     setDialogOpen(true);
   }
 
@@ -1503,33 +1896,67 @@ export default function TransactionsPage() {
     setFormError('');
 
     const amount = parseFloat(form.amount);
+
     if (!form.categoryId) {
       setFormError(t('transactions.categoryRequired'));
       return;
     }
+
+    if (!form.accountId) {
+      setFormError(t('transactions.accountRequired'));
+      return;
+    }
+
     if (isNaN(amount) || amount <= 0) {
       setFormError(t('transactions.amountInvalid'));
       return;
     }
 
-    const payload = {
-      date: form.date,
-      categoryId: form.categoryId,
-      description: form.description || null,
-      amount,
-      transactionType: form.transactionType,
-      uniqueCode: form.uniqueCode || null,
-    };
-
     try {
+      let finalAttachmentUrl = attachmentUrl;
+
+      // Kalau user memilih file baru, upload dulu ke Cloudinary
+      if (proofFile) {
+        setUploadingProof(true);
+
+        try {
+          const result = await uploadTransactionProof(proofFile);
+          finalAttachmentUrl = result.url;
+        } finally {
+          setUploadingProof(false);
+        }
+      }
+
+      const payload = {
+        date: form.date,
+        categoryId: form.categoryId,
+        accountId: form.accountId,
+        description: form.description || null,
+        amount,
+        transactionType: form.transactionType,
+        uniqueCode: form.uniqueCode || null,
+        attachmentUrl: finalAttachmentUrl,
+      };
+
       if (editingTx) {
-        await updateMutation.mutateAsync({ id: editingTx.id, data: payload });
+        await updateMutation.mutateAsync({
+          id: editingTx.id,
+          data: payload,
+        });
       } else {
         await createMutation.mutateAsync(payload);
       }
+
       setDialogOpen(false);
+      setProofFile(null);
+      setProofPreview(null);
+      setAttachmentUrl(null);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : t('transactions.saveFailed'));
+      setFormError(
+        err instanceof Error
+          ? err.message
+          : t('transactions.saveFailed'),
+      );
     }
   }
 
@@ -1548,13 +1975,19 @@ export default function TransactionsPage() {
   function clearFilters() {
     setFilterCategory('all');
     setFilterType('all');
+    setFilterAccount('all');
     setFilterStartDate('');
     setFilterEndDate('');
     setSearchQuery('');
     setCurrentPage(1);
   }
 
-  const hasFilters = filterCategory !== 'all' || filterType !== 'all' || !!filterStartDate || !!filterEndDate;
+  const hasFilters =
+    filterCategory !== 'all' ||
+    filterType !== 'all' ||
+    filterAccount !== 'all' ||
+    !!filterStartDate ||
+    !!filterEndDate;
 
   const filteredTransactions = searchQuery
     ? transactions.filter(
@@ -1565,7 +1998,6 @@ export default function TransactionsPage() {
       )
     : transactions;
 
-  // --- Pagination: potong data sesuai halaman aktif ---
   const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE));
   const safeCurrentPage = Math.min(currentPage, totalPages);
   const paginatedTransactions = filteredTransactions.slice(
@@ -1573,14 +2005,11 @@ export default function TransactionsPage() {
     safeCurrentPage * ITEMS_PER_PAGE,
   );
 
-  // Kelompokkan transaksi halaman ini per tanggal, biar tanggal tidak berulang
-  // di tiap baris dan alurnya lebih gampang diikuti.
   const groupedTransactions = groupTransactionsByDate(paginatedTransactions);
 
   const rangeStart = filteredTransactions.length === 0 ? 0 : (safeCurrentPage - 1) * ITEMS_PER_PAGE + 1;
   const rangeEnd = Math.min(safeCurrentPage * ITEMS_PER_PAGE, filteredTransactions.length);
 
-  // Handler filter/search yang juga reset halaman ke 1 (biar nggak nyangkut di halaman kosong)
   function handleFilterChange(setter: (v: string) => void) {
     return (v: string) => {
       setter(v);
@@ -1591,7 +2020,6 @@ export default function TransactionsPage() {
   // --- Render ---
   return (
     <div className="relative isolate p-4 sm:p-6 lg:p-8 animate-fade-in">
-      {/* Ambient background — glassmorphism + noise, sama seperti halaman Dashboard */}
       <PageBackground />
 
       <PageHeader title={t('transactions.title')} description={t('transactions.subtitle')}>
@@ -1603,16 +2031,17 @@ export default function TransactionsPage() {
         )}
       </PageHeader>
 
-      {!loading && !error && <TransactionSummary transactions={filteredTransactions} t={t} />}
-
       <TransactionFilterBar
         categories={categories}
+        accounts={accounts}
         searchQuery={searchQuery}
         onSearchChange={handleFilterChange(setSearchQuery)}
         filterCategory={filterCategory}
         onFilterCategoryChange={handleFilterChange(setFilterCategory)}
         filterType={filterType}
         onFilterTypeChange={handleFilterChange(setFilterType)}
+        filterAccount={filterAccount}
+        onFilterAccountChange={handleFilterChange(setFilterAccount)}
         filterStartDate={filterStartDate}
         onFilterStartDateChange={handleFilterChange(setFilterStartDate)}
         filterEndDate={filterEndDate}
@@ -1665,8 +2094,6 @@ export default function TransactionsPage() {
                   className={cn(
                     'border-l-4',
                     DATE_GROUP_THEME.border,
-                    // Garis pemisah horizontal setiap ganti hari, kecuali di grup
-                    // paling atas (biar tidak dobel sama border Card di atasnya).
                     groupIndex !== 0 && 'border-t-2',
                   )}
                 >
@@ -1687,6 +2114,7 @@ export default function TransactionsPage() {
                       index={i}
                       canEdit={canEdit}
                       onEdit={openEditDialog}
+                      onDuplicate={openDuplicateDialog}
                       onDeleteRequest={setDeleteTarget}
                       t={t}
                     />
@@ -1712,9 +2140,16 @@ export default function TransactionsPage() {
         form={form}
         onFormChange={updateForm}
         categories={categories}
+        accounts={accounts}
         formError={formError}
         saving={saving}
         onSave={handleSave}
+        proofFile={proofFile}
+        proofPreview={proofPreview}
+        attachmentUrl={attachmentUrl}
+        uploadingProof={uploadingProof}
+        onProofChange={handleProofChange}
+        onRemoveProof={handleRemoveProof}
         t={t}
       />
 
